@@ -1,42 +1,56 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
-import { vehicleService, Vehicle } from "@/lib/vehicles";
+import { vehicleService, vehicleTypeService, Vehicle, VehicleType } from "@/lib/vehicles";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, Eye, Pencil, Trash2, ChevronLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
-export default function VehiclesPage() {
+export default function VehiclesByTypePage() {
+  const params = useParams();
   const router = useRouter();
+  const vehicleTypeId = Number(params.id);
+
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleType, setVehicleType] = useState<VehicleType | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchVehicles = async () => {
+  const fetchData = async () => {
     try {
-      const response = await vehicleService.getAll();
-      const vehiclesData = response.data || [];
-      setVehicles(vehiclesData);
+      setLoading(true);
+
+      // Fetch vehicle type details
+      const typeResponse = await vehicleTypeService.getAll();
+      const type = typeResponse.data?.find((t: VehicleType) => t.id === vehicleTypeId);
+      setVehicleType(type || null);
+
+      // Fetch all vehicles and filter by type
+      const vehiclesResponse = await vehicleService.getAll();
+      const filteredVehicles = (vehiclesResponse.data || []).filter(
+        (v: Vehicle) => v.vehicle_type_id === vehicleTypeId
+      );
+      setVehicles(filteredVehicles);
     } catch (error) {
-      console.error("Failed to fetch vehicles:", error);
+      console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchVehicles();
-  }, []);
+    fetchData();
+  }, [vehicleTypeId]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this vehicle?")) return;
 
     try {
       await vehicleService.delete(id);
-      fetchVehicles();
+      fetchData();
     } catch (error) {
       console.error("Failed to delete vehicle:", error);
     }
@@ -44,26 +58,17 @@ export default function VehiclesPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
-        return "bg-green-500/20 text-green-700 border-green-500/50";
-      case "maintenance":
-        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50";
-      case "inactive":
-        return "bg-gray-500/20 text-gray-700 border-gray-500/50";
-      case "sold":
-        return "bg-blue-500/20 text-blue-700 border-blue-500/50";
+      case 'active':
+        return 'bg-green-500/20 text-green-700 border-green-500/50';
+      case 'maintenance':
+        return 'bg-yellow-500/20 text-yellow-700 border-yellow-500/50';
+      case 'inactive':
+        return 'bg-gray-500/20 text-gray-700 border-gray-500/50';
+      case 'sold':
+        return 'bg-blue-500/20 text-blue-700 border-blue-500/50';
       default:
-        return "";
+        return '';
     }
-  };
-
-  // Helper to get field value from vehicle
-  const getFieldValue = (vehicle: Vehicle, fieldKey: string): string => {
-    if (!vehicle.field_values) return '-';
-    const fieldValue = vehicle.field_values.find(
-      (fv) => fv.field?.key === fieldKey
-    );
-    return fieldValue?.value || '-';
   };
 
   const columns: ColumnDef<Vehicle>[] = [
@@ -82,52 +87,30 @@ export default function VehiclesPage() {
       },
     },
     {
-      accessorKey: "vehicle_type.name",
-      header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Type
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-      cell: ({ row }) => {
-        return row.original.vehicle_type?.name || "Unknown";
-      },
-    },
-    {
-      id: "make",
-      header: "Make",
-      cell: ({ row }) => getFieldValue(row.original, 'make'),
-    },
-    {
-      id: "model",
-      header: "Model",
-      cell: ({ row }) => getFieldValue(row.original, 'model'),
-    },
-    {
-      id: "year",
-      header: "Year",
-      cell: ({ row }) => getFieldValue(row.original, 'year'),
-    },
-    {
-      id: "capacity",
-      header: "Capacity",
+      id: "details",
+      header: "Vehicle Details",
       cell: ({ row }) => {
         const vehicle = row.original;
-        const capacity = getFieldValue(vehicle, 'capacity');
-        if (capacity === '-') return '-';
-
-        // Find the unit from the field
-        const capacityField = vehicle.field_values?.find(
-          fv => fv.field?.key === 'capacity'
+        // Show first 3 field values
+        const displayFields = vehicle.field_values?.slice(0, 3) || [];
+        return (
+          <div className="text-sm">
+            {displayFields.map((fv, idx) => (
+              <div key={idx} className="text-muted-foreground">
+                <span className="font-medium">{fv.field?.name}:</span> {fv.value}
+                {fv.field?.unit && ` ${fv.field.unit}`}
+              </div>
+            ))}
+            {vehicle.field_values && vehicle.field_values.length > 3 && (
+              <div className="text-xs text-muted-foreground italic">
+                +{vehicle.field_values.length - 3} more fields
+              </div>
+            )}
+            {(!vehicle.field_values || vehicle.field_values.length === 0) && (
+              <div className="text-muted-foreground italic">No field data</div>
+            )}
+          </div>
         );
-        const unit = capacityField?.field?.unit;
-
-        return unit ? `${capacity} ${unit}` : capacity;
       },
     },
     {
@@ -153,7 +136,6 @@ export default function VehiclesPage() {
               variant="ghost"
               size="sm"
               onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}`)}
-              title="View Details"
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -161,7 +143,6 @@ export default function VehiclesPage() {
               variant="ghost"
               size="sm"
               onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}/edit`)}
-              title="Edit"
             >
               <Pencil className="h-4 w-4" />
             </Button>
@@ -170,7 +151,6 @@ export default function VehiclesPage() {
               size="sm"
               onClick={() => handleDelete(vehicle.id)}
               className="hover:text-destructive"
-              title="Delete"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -194,11 +174,25 @@ export default function VehiclesPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Vehicles</h1>
-            <p className="text-muted-foreground mt-2">Manage your fleet vehicles</p>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/dashboard/vehicle-types')}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {vehicleType?.name || "Vehicle Type"} Vehicles
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Manage vehicles of type: {vehicleType?.name}
+              </p>
+            </div>
           </div>
-          <Button onClick={() => router.push("/dashboard/vehicles/new")}>
+          <Button onClick={() => router.push(`/dashboard/vehicles/create?type=${vehicleTypeId}`)}>
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>

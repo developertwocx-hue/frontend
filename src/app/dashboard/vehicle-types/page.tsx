@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +19,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { vehicleTypeService, VehicleType } from "@/lib/vehicles";
 import { useForm } from "react-hook-form";
+import { Truck, ChevronRight } from "lucide-react";
 
 export default function VehicleTypesPage() {
+  const router = useRouter();
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -79,6 +82,10 @@ export default function VehicleTypesPage() {
     }
   };
 
+  const handleCardClick = (typeId: number) => {
+    router.push(`/dashboard/vehicle-types/${typeId}/vehicles`);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -101,18 +108,27 @@ export default function VehicleTypesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {vehicleTypes.map((type) => (
-            <Card key={type.id} className="hover:border-primary/50 transition-all duration-300">
+            <Card
+              key={type.id}
+              className="hover:border-primary hover:shadow-lg transition-all duration-300 cursor-pointer group"
+              onClick={() => handleCardClick(type.id)}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg font-semibold">
-                      {type.name}
-                    </CardTitle>
-                    {type.description && (
-                      <CardDescription className="mt-2">
-                        {type.description}
-                      </CardDescription>
-                    )}
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      <Truck className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">
+                        {type.name}
+                      </CardTitle>
+                      {type.description && (
+                        <CardDescription className="mt-1 line-clamp-2">
+                          {type.description}
+                        </CardDescription>
+                      )}
+                    </div>
                   </div>
                   <Badge
                     variant={type.is_active ? "default" : "secondary"}
@@ -123,29 +139,9 @@ export default function VehicleTypesPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenDialog(type)}
-                    className="flex-1"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(type.id)}
-                    className="flex-1 hover:bg-destructive hover:text-destructive-foreground"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Delete
-                  </Button>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>View vehicles</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </div>
               </CardContent>
             </Card>

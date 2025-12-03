@@ -2,18 +2,52 @@ import api from './api';
 
 export interface VehicleType {
   id: number;
-  tenant_id: string;
   name: string;
   description?: string;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+export interface VehicleTypeField {
+  id: number;
+  vehicle_type_id: number;
+  tenant_id: string | null;
+  name: string;
+  key: string;
+  field_type: 'text' | 'number' | 'date' | 'select' | 'boolean' | 'textarea';
+  unit?: string;
+  options?: Record<string, string>;
+  is_required: boolean;
+  is_active: boolean;
+  sort_order: number;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VehicleFieldValue {
+  id: number;
+  vehicle_id: number;
+  vehicle_type_field_id: number;
+  value: string;
+  field?: VehicleTypeField;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Vehicle {
   id: number;
   tenant_id: string;
   vehicle_type_id: number;
-  name: string;
+  status: 'active' | 'maintenance' | 'inactive' | 'sold';
+  vehicle_type?: VehicleType;
+  field_values?: VehicleFieldValue[];
+  created_at: string;
+  updated_at: string;
+
+  // Legacy fields (for backward compatibility, will be removed)
+  name?: string;
   make?: string;
   model?: string;
   year?: number;
@@ -21,16 +55,13 @@ export interface Vehicle {
   vin?: string;
   serial_number?: string;
   capacity?: number;
-  capacity_unit: string;
+  capacity_unit?: string;
   specifications?: string;
-  status: 'active' | 'maintenance' | 'inactive' | 'sold';
   purchase_date?: string;
   purchase_price?: number;
   last_service_date?: string;
   next_service_date?: string;
   notes?: string;
-  vehicle_type?: VehicleType;
-  created_at: string;
 }
 
 export interface VehicleDocument {
@@ -57,6 +88,11 @@ export const vehicleTypeService = {
     return response.data;
   },
 
+  async getOne(id: number) {
+    const response = await api.get(`/vehicle-types/${id}`);
+    return response.data;
+  },
+
   async create(data: Partial<VehicleType>) {
     const response = await api.post('/vehicle-types', data);
     return response.data;
@@ -73,23 +109,68 @@ export const vehicleTypeService = {
   },
 };
 
+export const vehicleTypeFieldService = {
+  async getAll(vehicleTypeId?: number) {
+    const url = vehicleTypeId
+      ? `/vehicle-type-fields?vehicle_type_id=${vehicleTypeId}`
+      : '/vehicle-type-fields';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  async getForType(vehicleTypeId: number, includeCustom: boolean = true) {
+    // Get default fields (tenant_id = null) and optionally custom fields
+    const response = await api.get(`/vehicle-types/${vehicleTypeId}/fields`, {
+      params: { include_custom: includeCustom },
+    });
+    return response.data;
+  },
+
+  async create(data: Partial<VehicleTypeField>) {
+    const response = await api.post('/vehicle-type-fields', data);
+    return response.data;
+  },
+
+  async update(id: number, data: Partial<VehicleTypeField>) {
+    const response = await api.put(`/vehicle-type-fields/${id}`, data);
+    return response.data;
+  },
+
+  async delete(id: number) {
+    const response = await api.delete(`/vehicle-type-fields/${id}`);
+    return response.data;
+  },
+};
+
 export const vehicleService = {
-  async getAll() {
-    const response = await api.get('/vehicles');
+  async getAll(includeFieldValues: boolean = true) {
+    const response = await api.get('/vehicles', {
+      params: { include_field_values: includeFieldValues },
+    });
     return response.data;
   },
 
-  async getOne(id: number) {
-    const response = await api.get(`/vehicles/${id}`);
+  async getOne(id: number, includeFieldValues: boolean = true) {
+    const response = await api.get(`/vehicles/${id}`, {
+      params: { include_field_values: includeFieldValues },
+    });
     return response.data;
   },
 
-  async create(data: Partial<Vehicle>) {
+  async create(data: {
+    vehicle_type_id: number;
+    status: string;
+    field_values?: Record<string, any>;
+  }) {
     const response = await api.post('/vehicles', data);
     return response.data;
   },
 
-  async update(id: number, data: Partial<Vehicle>) {
+  async update(id: number, data: {
+    vehicle_type_id?: number;
+    status?: string;
+    field_values?: Record<string, any>;
+  }) {
     const response = await api.put(`/vehicles/${id}`, data);
     return response.data;
   },
@@ -97,6 +178,27 @@ export const vehicleService = {
   async delete(id: number) {
     const response = await api.delete(`/vehicles/${id}`);
     return response.data;
+  },
+
+  // Helper method to get field value by key
+  getFieldValue(vehicle: Vehicle, fieldKey: string): string | undefined {
+    if (!vehicle.field_values) return undefined;
+    const fieldValue = vehicle.field_values.find(
+      (fv) => fv.field?.key === fieldKey
+    );
+    return fieldValue?.value;
+  },
+
+  // Helper method to format field values for display
+  formatFieldValues(vehicle: Vehicle): Record<string, any> {
+    if (!vehicle.field_values) return {};
+    const formatted: Record<string, any> = {};
+    vehicle.field_values.forEach((fv) => {
+      if (fv.field) {
+        formatted[fv.field.key] = fv.value;
+      }
+    });
+    return formatted;
   },
 };
 
