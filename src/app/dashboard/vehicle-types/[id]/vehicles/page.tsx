@@ -9,6 +9,7 @@ import { vehicleService, vehicleTypeService, Vehicle, VehicleType } from "@/lib/
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Eye, Pencil, Trash2, ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PageLoading } from "@/components/ui/loading-overlay";
 
 export default function VehiclesByTypePage() {
   const params = useParams();
@@ -42,7 +43,40 @@ export default function VehiclesByTypePage() {
   };
 
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch vehicle type details
+        const typeResponse = await vehicleTypeService.getAll();
+        const type = typeResponse.data?.find((t: VehicleType) => t.id === vehicleTypeId);
+
+        // Fetch all vehicles and filter by type
+        const vehiclesResponse = await vehicleService.getAll();
+        const filteredVehicles = (vehiclesResponse.data || []).filter(
+          (v: Vehicle) => v.vehicle_type_id === vehicleTypeId
+        );
+
+        if (isMounted) {
+          setVehicleType(type || null);
+          setVehicles(filteredVehicles);
+          setLoading(false);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Failed to fetch data:", error);
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [vehicleTypeId]);
 
   const handleDelete = async (id: number) => {
@@ -87,33 +121,6 @@ export default function VehiclesByTypePage() {
       },
     },
     {
-      id: "details",
-      header: "Vehicle Details",
-      cell: ({ row }) => {
-        const vehicle = row.original;
-        // Show first 3 field values
-        const displayFields = vehicle.field_values?.slice(0, 3) || [];
-        return (
-          <div className="text-sm">
-            {displayFields.map((fv, idx) => (
-              <div key={idx} className="text-muted-foreground">
-                <span className="font-medium">{fv.field?.name}:</span> {fv.value}
-                {fv.field?.unit && ` ${fv.field.unit}`}
-              </div>
-            ))}
-            {vehicle.field_values && vehicle.field_values.length > 3 && (
-              <div className="text-xs text-muted-foreground italic">
-                +{vehicle.field_values.length - 3} more fields
-              </div>
-            )}
-            {(!vehicle.field_values || vehicle.field_values.length === 0) && (
-              <div className="text-muted-foreground italic">No field data</div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
@@ -131,26 +138,38 @@ export default function VehiclesByTypePage() {
       cell: ({ row }) => {
         const vehicle = row.original;
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/dashboard/vehicles/${vehicle.id}`);
+              }}
+              title="View Details"
             >
               <Eye className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}/edit`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/dashboard/vehicles/${vehicle.id}/edit`);
+              }}
+              title="Edit"
             >
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleDelete(vehicle.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(vehicle.id);
+              }}
               className="hover:text-destructive"
+              title="Delete"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -163,9 +182,7 @@ export default function VehiclesByTypePage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
+        <PageLoading message="Loading vehicles..." />
       </DashboardLayout>
     );
   }

@@ -9,13 +9,20 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and tenant ID
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Add tenant ID header for multi-tenancy
+    const tenantId = localStorage.getItem('tenant_id');
+    if (tenantId) {
+      config.headers['X-Tenant'] = tenantId;
+    }
+
     return config;
   },
   (error) => {
@@ -28,7 +35,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear all auth data on unauthorized
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('tenant');
+      localStorage.removeItem('tenant_id');
       window.location.href = '/login';
     }
     return Promise.reject(error);

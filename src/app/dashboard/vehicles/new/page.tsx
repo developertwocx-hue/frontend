@@ -1,24 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { vehicleService, vehicleTypeService, VehicleType } from "@/lib/vehicles";
+import {
+  vehicleService,
+  vehicleTypeService,
+  vehicleTypeFieldService,
+  VehicleType,
+  VehicleTypeField,
+} from "@/lib/vehicles";
+import { ChevronLeft, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { LoadingOverlay, PageLoading } from "@/components/ui/loading-overlay";
 
 export default function NewVehiclePage() {
   const router = useRouter();
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedTypeId, setSelectedTypeId] = useState("");
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const searchParams = useSearchParams();
+  const preSelectedTypeId = searchParams.get("type");
 
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [fields, setFields] = useState<VehicleTypeField[]>([]);
+  const [selectedTypeId, setSelectedTypeId] = useState(preSelectedTypeId || "");
+  const [loading, setLoading] = useState(false);
+  const [loadingFields, setLoadingFields] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm({
+    defaultValues: {
+      status: "active",
+    },
+  });
+
+  // Fetch vehicle types
   useEffect(() => {
     const fetchVehicleTypes = async () => {
       try {
@@ -31,63 +55,117 @@ export default function NewVehiclePage() {
     fetchVehicleTypes();
   }, []);
 
+  // Fetch fields when vehicle type is selected
+  useEffect(() => {
+    const fetchFields = async () => {
+      if (!selectedTypeId) {
+        setFields([]);
+        setLoadingFields(false);
+        return;
+      }
+
+      try {
+        setLoadingFields(true);
+        const response = await vehicleTypeFieldService.getForType(
+          parseInt(selectedTypeId),
+          true
+        );
+        setFields(response.data || []);
+      } catch (error) {
+        console.error("Failed to fetch fields:", error);
+      } finally {
+        setLoadingFields(false);
+      }
+    };
+
+    fetchFields();
+  }, [selectedTypeId]);
+
   const onSubmit = async (data: any) => {
-    setLoading(true);
+    setSubmitting(true);
+    setError(null);
+
     try {
-      await vehicleService.create({
-        ...data,
-        vehicle_type_id: selectedTypeId,
+      // Build field_values object
+      const fieldValues: Record<string, any> = {};
+      fields.forEach((field) => {
+        const value = data[`field_${field.key}`];
+        if (value !== undefined && value !== "") {
+          fieldValues[field.key] = value;
+        }
       });
+
+      await vehicleService.create({
+        vehicle_type_id: parseInt(selectedTypeId),
+        status: data.status,
+        field_values: fieldValues,
+      });
+
       router.push("/dashboard/vehicles");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create vehicle:", error);
+      setError(error.response?.data?.message || "Failed to create vehicle");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  // Sort fields by sort_order
+  const sortedFields = [...fields].sort((a, b) => a.sort_order - b.sort_order);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <PageLoading message="Loading vehicle form..." />
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="relative space-y-6">
+        <LoadingOverlay isLoading={submitting} message="Creating vehicle..." />
+
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} disabled={submitting}>
+            <ChevronLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Add New Vehicle
-            </h1>
-            <p className="text-muted-foreground mt-1">Fill in the details below</p>
+            <h1 className="text-3xl font-bold tracking-tight">Add New Vehicle</h1>
+            <p className="text-muted-foreground mt-1">
+              Fill in the vehicle details below
+            </p>
           </div>
         </div>
 
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Vehicle Type and Status */}
           <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
+              <CardDescription>Select vehicle type and status</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Vehicle Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="e.g., Crane #1"
-                    {...register("name", { required: true })}
-                  />
-                  {errors.name && <p className="text-sm text-destructive">Name is required</p>}
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="vehicle_type_id">Vehicle Type *</Label>
-                  <Select value={selectedTypeId} onValueChange={setSelectedTypeId}>
+                  <Select
+                    value={selectedTypeId}
+                    onValueChange={(value) => {
+                      setSelectedTypeId(value);
+                      setValue("vehicle_type_id", value);
+                    }}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder="Select vehicle type" />
                     </SelectTrigger>
                     <SelectContent>
                       {vehicleTypes.map((type) => (
@@ -97,142 +175,212 @@ export default function NewVehiclePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {!selectedTypeId && (
+                    <p className="text-sm text-muted-foreground">
+                      Select a vehicle type to see available fields
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="make">Make/Manufacturer</Label>
-                  <Input id="make" placeholder="e.g., Caterpillar" {...register("make")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="model">Model</Label>
-                  <Input id="model" placeholder="e.g., 320D" {...register("model")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="year">Year</Label>
-                  <Input id="year" type="number" placeholder="2024" {...register("year")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="registration_number">Registration Number</Label>
-                  <Input id="registration_number" placeholder="ABC-1234" {...register("registration_number")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="vin">VIN</Label>
-                  <Input id="vin" placeholder="Vehicle Identification Number" {...register("vin")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="serial_number">Serial Number</Label>
-                  <Input id="serial_number" placeholder="Serial Number" {...register("serial_number")} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Specifications</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="capacity">Capacity</Label>
-                  <Input id="capacity" type="number" step="0.01" placeholder="50" {...register("capacity")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="capacity_unit">Capacity Unit</Label>
-                  <Select defaultValue="tons" {...register("capacity_unit")}>
+                  <Label htmlFor="status">Status *</Label>
+                  <Select
+                    value={watch("status")}
+                    onValueChange={(value) => setValue("status", value)}
+                  >
                     <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tons">Tons</SelectItem>
-                      <SelectItem value="kg">Kilograms</SelectItem>
-                      <SelectItem value="lbs">Pounds</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="specifications">Specifications</Label>
-                  <Textarea
-                    id="specifications"
-                    rows={3}
-                    placeholder="Additional specifications..."
-                    {...register("specifications")}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Status & Maintenance</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select defaultValue="active" {...register("status")}>
-                    <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="maintenance">Maintenance</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="sold">Sold</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="purchase_date">Purchase Date</Label>
-                  <Input id="purchase_date" type="date" {...register("purchase_date")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="purchase_price">Purchase Price</Label>
-                  <Input id="purchase_price" type="number" step="0.01" placeholder="50000" {...register("purchase_price")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="last_service_date">Last Service Date</Label>
-                  <Input id="last_service_date" type="date" {...register("last_service_date")} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="next_service_date">Next Service Date</Label>
-                  <Input id="next_service_date" type="date" {...register("next_service_date")} />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea id="notes" rows={3} placeholder="Additional notes..." {...register("notes")} />
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* Loading Fields */}
+          {selectedTypeId && loadingFields && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <LoadingSpinner size="lg" />
+                <p className="text-sm font-medium text-muted-foreground mt-4 animate-pulse">
+                  Loading vehicle type fields...
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Dynamic Fields - All Fields Combined */}
+          {selectedTypeId && !loadingFields && sortedFields.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Vehicle Information</CardTitle>
+                <CardDescription>
+                  Fill in the vehicle details
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {sortedFields.map((field) => (
+                    <div key={field.id} className="space-y-2">
+                      <Label htmlFor={`field_${field.key}`}>
+                        {field.name}
+                        {field.is_required && (
+                          <span className="text-destructive ml-1">*</span>
+                        )}
+                        {field.unit && (
+                          <span className="text-muted-foreground ml-1">
+                            ({field.unit})
+                          </span>
+                        )}
+                      </Label>
+
+                      {/* Text Field */}
+                      {field.field_type === "text" && (
+                        <Input
+                          id={`field_${field.key}`}
+                          {...register(`field_${field.key}`, {
+                            required: field.is_required,
+                          })}
+                          placeholder={field.description || field.name}
+                        />
+                      )}
+
+                      {/* Number Field */}
+                      {field.field_type === "number" && (
+                        <Input
+                          id={`field_${field.key}`}
+                          type="number"
+                          step="0.01"
+                          {...register(`field_${field.key}`, {
+                            required: field.is_required,
+                            valueAsNumber: true,
+                          })}
+                          placeholder={field.description || field.name}
+                        />
+                      )}
+
+                      {/* Date Field */}
+                      {field.field_type === "date" && (
+                        <Input
+                          id={`field_${field.key}`}
+                          type="date"
+                          {...register(`field_${field.key}`, {
+                            required: field.is_required,
+                          })}
+                        />
+                      )}
+
+                      {/* Textarea Field */}
+                      {field.field_type === "textarea" && (
+                        <Textarea
+                          id={`field_${field.key}`}
+                          {...register(`field_${field.key}`, {
+                            required: field.is_required,
+                          })}
+                          placeholder={field.description || field.name}
+                          rows={3}
+                        />
+                      )}
+
+                      {/* Select Field */}
+                      {field.field_type === "select" && field.options && (
+                        <Select
+                          value={watch(`field_${field.key}`)}
+                          onValueChange={(value) =>
+                            setValue(`field_${field.key}`, value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={`Select ${field.name}`}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(field.options).map(([key, label]) => (
+                              <SelectItem key={key} value={key}>
+                                {label as string}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      {/* Boolean Field */}
+                      {field.field_type === "boolean" && (
+                        <Select
+                          value={watch(`field_${field.key}`)}
+                          onValueChange={(value) =>
+                            setValue(`field_${field.key}`, value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={`Select ${field.name}`}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">Yes</SelectItem>
+                            <SelectItem value="0">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      {field.description && (
+                        <p className="text-xs text-muted-foreground">
+                          {field.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No fields message */}
+          {selectedTypeId && !loadingFields && fields.length === 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Fields Configured</h3>
+                <p className="text-sm text-muted-foreground text-center">
+                  This vehicle type has no fields configured yet.
+                  <br />
+                  Contact your administrator to add fields.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex gap-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => router.back()}
+              disabled={submitting}
               className="flex-1"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={submitting || !selectedTypeId}
               className="flex-1"
             >
-              {loading ? "Creating..." : "Create Vehicle"}
+              {submitting ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Creating...
+                </>
+              ) : (
+                "Create Vehicle"
+              )}
             </Button>
           </div>
         </form>

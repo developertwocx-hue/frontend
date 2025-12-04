@@ -12,15 +12,30 @@ export interface RegisterCredentials {
   password_confirmation: string;
 }
 
+export interface Tenant {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  subscription_plan?: string;
+  subscription_ends_at?: string;
+}
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  tenant_id: string;
+  role?: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   message: string;
   data: {
-    user: {
-      id: number;
-      name: string;
-      email: string;
-    };
+    user: User;
+    tenant: Tenant;
     token: string;
   };
 }
@@ -30,6 +45,9 @@ export const authService = {
     const response = await api.post<AuthResponse>('/auth/login', credentials);
     if (response.data.data.token) {
       localStorage.setItem('auth_token', response.data.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      localStorage.setItem('tenant', JSON.stringify(response.data.data.tenant));
+      localStorage.setItem('tenant_id', response.data.data.user.tenant_id);
     }
     return response.data;
   },
@@ -38,6 +56,9 @@ export const authService = {
     const response = await api.post<AuthResponse>('/auth/register', credentials);
     if (response.data.data.token) {
       localStorage.setItem('auth_token', response.data.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      localStorage.setItem('tenant', JSON.stringify(response.data.data.tenant));
+      localStorage.setItem('tenant_id', response.data.data.user.tenant_id);
     }
     return response.data;
   },
@@ -45,6 +66,9 @@ export const authService = {
   async logout(): Promise<void> {
     await api.post('/auth/logout');
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('tenant');
+    localStorage.removeItem('tenant_id');
   },
 
   async googleLogin(): Promise<void> {

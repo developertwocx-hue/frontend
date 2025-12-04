@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { tenantService } from "@/lib/tenant";
 
 const businessSchema = z.object({
@@ -200,7 +201,14 @@ export default function RegisterBusinessPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating Business..." : "Register Business"}
+              {loading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Creating Business...
+                </>
+              ) : (
+                "Register Business"
+              )}
             </Button>
           </form>
         </CardContent>

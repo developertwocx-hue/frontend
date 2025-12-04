@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { authService } from "@/lib/auth";
 
 const signupSchema = z.object({
@@ -147,7 +148,14 @@ export default function SignupPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Creating account...
+                </>
+              ) : (
+                "Create Account"
+              )}
             </Button>
           </form>
 

@@ -5,30 +5,41 @@ import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/data-table";
 import { vehicleService, Vehicle } from "@/lib/vehicles";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, Eye, Pencil, Trash2, Plus } from "lucide-react";
+import { PageLoading } from "@/components/ui/loading-overlay";
 
 export default function VehiclesPage() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchVehicles = async () => {
-    try {
-      const response = await vehicleService.getAll();
-      const vehiclesData = response.data || [];
-      setVehicles(vehiclesData);
-    } catch (error) {
-      console.error("Failed to fetch vehicles:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchVehicles = async () => {
+      try {
+        const response = await vehicleService.getAll();
+        if (isMounted) {
+          setVehicles(response.data || []);
+          setLoading(false);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Failed to fetch vehicles:", error);
+          setLoading(false);
+        }
+      }
+    };
+
     fetchVehicles();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleDelete = async (id: number) => {
@@ -36,7 +47,9 @@ export default function VehiclesPage() {
 
     try {
       await vehicleService.delete(id);
-      fetchVehicles();
+      // Refresh the list
+      const response = await vehicleService.getAll();
+      setVehicles(response.data || []);
     } catch (error) {
       console.error("Failed to delete vehicle:", error);
     }
@@ -45,7 +58,7 @@ export default function VehiclesPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-500/20 text-green-700 border-green-500/50";
+        return "bg-primary/20 text-primary border-primary/50";
       case "maintenance":
         return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50";
       case "inactive":
@@ -57,77 +70,51 @@ export default function VehiclesPage() {
     }
   };
 
-  // Helper to get field value from vehicle
-  const getFieldValue = (vehicle: Vehicle, fieldKey: string): string => {
-    if (!vehicle.field_values) return '-';
-    const fieldValue = vehicle.field_values.find(
-      (fv) => fv.field?.key === fieldKey
+  const getVehicleName = (vehicle: Vehicle) => {
+    // Find the 'name' field from field_values
+    const nameField = vehicle.field_values?.find(fv =>
+      fv.field?.key === 'name'
     );
-    return fieldValue?.value || '-';
+    return nameField?.value || null;
   };
 
   const columns: ColumnDef<Vehicle>[] = [
     {
       accessorKey: "id",
-      header: ({ column }) => {
+      header: "ID",
+      cell: ({ row }) => {
         return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            ID
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
+          <div className="font-medium text-muted-foreground">
+            #{row.getValue("id")}
+          </div>
+        );
+      },
+    },
+    {
+      id: "name",
+      header: "Name",
+      cell: ({ row }) => {
+        const vehicle = row.original;
+        const name = getVehicleName(vehicle);
+        return name ? (
+          <div className="font-medium">{name}</div>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
         );
       },
     },
     {
       accessorKey: "vehicle_type.name",
-      header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Type
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
+      header: "Vehicle Type",
       cell: ({ row }) => {
-        return row.original.vehicle_type?.name || "Unknown";
-      },
-    },
-    {
-      id: "make",
-      header: "Make",
-      cell: ({ row }) => getFieldValue(row.original, 'make'),
-    },
-    {
-      id: "model",
-      header: "Model",
-      cell: ({ row }) => getFieldValue(row.original, 'model'),
-    },
-    {
-      id: "year",
-      header: "Year",
-      cell: ({ row }) => getFieldValue(row.original, 'year'),
-    },
-    {
-      id: "capacity",
-      header: "Capacity",
-      cell: ({ row }) => {
-        const vehicle = row.original;
-        const capacity = getFieldValue(vehicle, 'capacity');
-        if (capacity === '-') return '-';
-
-        // Find the unit from the field
-        const capacityField = vehicle.field_values?.find(
-          fv => fv.field?.key === 'capacity'
+        const typeName = row.original.vehicle_type?.name;
+        return typeName ? (
+          <Badge variant="outline" className="capitalize">
+            {typeName}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">Unknown</span>
         );
-        const unit = capacityField?.field?.unit;
-
-        return unit ? `${capacity} ${unit}` : capacity;
       },
     },
     {
@@ -136,9 +123,28 @@ export default function VehiclesPage() {
       cell: ({ row }) => {
         const status = row.getValue("status") as string;
         return (
-          <Badge className={getStatusColor(status)}>
+          <Badge className={`${getStatusColor(status)} capitalize`}>
             {status}
           </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "created_at",
+      header: "Created Date",
+      cell: ({ row }) => {
+        const createdAt = row.getValue("created_at") as string;
+        if (!createdAt) return <span className="text-muted-foreground text-sm">-</span>;
+
+        const date = new Date(createdAt);
+        return (
+          <span className="text-sm text-muted-foreground">
+            {date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            })}
+          </span>
         );
       },
     },
@@ -148,11 +154,14 @@ export default function VehiclesPage() {
       cell: ({ row }) => {
         const vehicle = row.original;
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/dashboard/vehicles/${vehicle.id}`);
+              }}
               title="View Details"
             >
               <Eye className="h-4 w-4" />
@@ -160,7 +169,10 @@ export default function VehiclesPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}/edit`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/dashboard/vehicles/${vehicle.id}/edit`);
+              }}
               title="Edit"
             >
               <Pencil className="h-4 w-4" />
@@ -168,7 +180,10 @@ export default function VehiclesPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleDelete(vehicle.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(vehicle.id);
+              }}
               className="hover:text-destructive"
               title="Delete"
             >
@@ -183,9 +198,7 @@ export default function VehiclesPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
+        <PageLoading message="Loading vehicles..." />
       </DashboardLayout>
     );
   }
@@ -199,19 +212,27 @@ export default function VehiclesPage() {
             <p className="text-muted-foreground mt-2">Manage your fleet vehicles</p>
           </div>
           <Button onClick={() => router.push("/dashboard/vehicles/new")}>
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="h-4 w-4 mr-2" />
             Add Vehicle
           </Button>
         </div>
 
-        <DataTable
-          columns={columns}
-          data={vehicles}
-          searchKey="id"
-          searchPlaceholder="Search by ID..."
-        />
+        <Card>
+          <CardHeader>
+            <CardTitle>All Vehicles</CardTitle>
+            <CardDescription>
+              View and manage all vehicles in your fleet
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={columns}
+              data={vehicles}
+              searchKey="id"
+              searchPlaceholder="Search vehicles..."
+            />
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

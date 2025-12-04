@@ -82,6 +82,12 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
     return pathname.startsWith(href);
   };
 
+  // Check if any submenu item is active (for collapsible state)
+  const isAnySubItemActive = (items?: any[]) => {
+    if (!items) return false;
+    return items.some((item) => pathname.startsWith(item.href));
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border">
@@ -114,15 +120,16 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
 
                 // If item has submenu, wrap in Collapsible
                 if (item.items) {
+                  const hasActiveSubItem = isAnySubItemActive(item.items);
                   return (
                     <Collapsible
                       key={item.title}
                       asChild
-                      defaultOpen={isActive}
+                      defaultOpen={hasActiveSubItem || isActive}
                     >
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton tooltip={item.title} isActive={isActive}>
+                          <SidebarMenuButton tooltip={item.title} isActive={hasActiveSubItem || isActive}>
                             <item.icon className="h-4 w-4" />
                             <span>{item.title}</span>
                             <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -134,11 +141,12 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
                               // Check if submenu item should be shown based on adminOnly flag
                               if (subItem.adminOnly && !isAdmin) return null;
 
+                              const isSubItemActive = pathname.startsWith(subItem.href);
                               return (
                                 <SidebarMenuSubItem key={subItem.title}>
                                   <SidebarMenuSubButton
                                     asChild
-                                    isActive={pathname === subItem.href}
+                                    isActive={isSubItemActive}
                                   >
                                     <Link href={subItem.href}>
                                       <span>{subItem.title}</span>

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { authService } from "@/lib/auth";
 
 const loginSchema = z.object({
@@ -116,7 +117,14 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </form>
 

@@ -8,14 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { vehicleService, Vehicle } from "@/lib/vehicles";
-import { ChevronLeft, Download, FileText, QrCode, Settings } from "lucide-react";
+import { vehicleService, Vehicle, VehicleFieldValue } from "@/lib/vehicles";
+import { ChevronLeft, Download, FileText, QrCode, Settings, Pencil } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { PageLoading } from "@/components/ui/loading-overlay";
 
 export default function VehicleDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const vehicleId = params?.id as string;
+  const vehicleId = parseInt(params?.id as string);
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,7 @@ export default function VehicleDetailPage() {
   useEffect(() => {
     const fetchVehicle = async () => {
       try {
-        const response = await vehicleService.getById(vehicleId);
+        const response = await vehicleService.getOne(vehicleId);
         setVehicle(response.data);
       } catch (error) {
         console.error("Failed to fetch vehicle:", error);
@@ -40,15 +41,15 @@ export default function VehicleDetailPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-primary/20 text-primary border-primary/50";
+        return "bg-green-500/20 text-green-700 border-green-500/50";
       case "maintenance":
-        return "bg-muted text-muted-foreground border-border";
+        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50";
       case "inactive":
-        return "bg-secondary text-secondary-foreground border-border";
+        return "bg-gray-500/20 text-gray-700 border-gray-500/50";
       case "sold":
-        return "bg-destructive/20 text-destructive border-destructive/50";
+        return "bg-blue-500/20 text-blue-700 border-blue-500/50";
       default:
-        return "bg-secondary text-secondary-foreground border-border";
+        return "";
     }
   };
 
@@ -63,20 +64,31 @@ export default function VehicleDetailPage() {
     }
   };
 
+  // Get field value helper
+  const getFieldValue = (fieldKey: string): string => {
+    if (!vehicle?.field_values) return '-';
+    const fieldValue = vehicle.field_values.find(
+      (fv) => fv.field?.key === fieldKey
+    );
+    return fieldValue?.value || '-';
+  };
+
   const qrCodeData = JSON.stringify({
     id: vehicle?.id,
-    name: vehicle?.name,
     type: vehicle?.vehicle_type?.name,
-    registration: vehicle?.registration_number,
-    vin: vehicle?.vin,
+    make: getFieldValue('make'),
+    model: getFieldValue('model'),
+    year: getFieldValue('year'),
   });
+
+  // Group fields by default vs custom
+  const defaultFields = vehicle?.field_values?.filter(fv => fv.field?.tenant_id === null) || [];
+  const customFields = vehicle?.field_values?.filter(fv => fv.field?.tenant_id !== null) || [];
 
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <PageLoading message="Loading vehicle details..." />
       </DashboardLayout>
     );
   }
@@ -97,23 +109,36 @@ export default function VehicleDetailPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight">{vehicle.name}</h1>
-            <p className="text-muted-foreground mt-1">
-              {vehicle.vehicle_type?.name || "Unknown Type"}
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.back()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                Vehicle #{vehicle.id}
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                {vehicle.vehicle_type?.name || "Unknown Type"}
+              </p>
+            </div>
           </div>
-          <Badge className={`${getStatusColor(vehicle.status)} capitalize border font-medium`}>
-            {vehicle.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className={`${getStatusColor(vehicle.status)} capitalize border font-medium`}>
+              {vehicle.status}
+            </Badge>
+            <Button
+              onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/edit`)}
+              className="gap-2"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="details" className="space-y-4">
@@ -133,121 +158,71 @@ export default function VehicleDetailPage() {
           </TabsList>
 
           <TabsContent value="details" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {vehicle.make && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Make</p>
-                      <p className="text-base font-semibold">{vehicle.make}</p>
-                    </div>
-                  )}
-                  {vehicle.model && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Model</p>
-                      <p className="text-base font-semibold">{vehicle.model}</p>
-                    </div>
-                  )}
-                  {vehicle.year && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Year</p>
-                      <p className="text-base font-semibold">{vehicle.year}</p>
-                    </div>
-                  )}
-                  {vehicle.registration_number && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Registration Number</p>
-                      <p className="text-base font-semibold">{vehicle.registration_number}</p>
-                    </div>
-                  )}
-                  {vehicle.vin && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">VIN</p>
-                      <p className="text-base font-semibold">{vehicle.vin}</p>
-                    </div>
-                  )}
-                  {vehicle.serial_number && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Serial Number</p>
-                      <p className="text-base font-semibold">{vehicle.serial_number}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Default Fields */}
+            {defaultFields.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vehicle Information</CardTitle>
+                  <CardDescription>Default fields for this vehicle type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {defaultFields.map((fv) => (
+                      <div key={fv.id} className="space-y-1">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {fv.field?.name}
+                        </p>
+                        <p className="text-base font-semibold">
+                          {fv.value}
+                          {fv.field?.unit && ` ${fv.field.unit}`}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Specifications</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {vehicle.capacity && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Capacity</p>
-                      <p className="text-base font-semibold">
-                        {vehicle.capacity} {vehicle.capacity_unit || ""}
-                      </p>
-                    </div>
-                  )}
-                  {vehicle.specifications && (
-                    <div className="space-y-1 md:col-span-2">
-                      <p className="text-sm font-medium text-muted-foreground">Additional Specifications</p>
-                      <p className="text-base">{vehicle.specifications}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Custom Fields */}
+            {customFields.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Custom Fields</CardTitle>
+                  <CardDescription>Tenant-specific custom fields</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {customFields.map((fv) => (
+                      <div key={fv.id} className="space-y-1">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {fv.field?.name}
+                        </p>
+                        <p className="text-base font-semibold">
+                          {fv.value}
+                          {fv.field?.unit && ` ${fv.field.unit}`}
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          Custom
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Purchase & Maintenance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {vehicle.purchase_date && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Purchase Date</p>
-                      <p className="text-base font-semibold">
-                        {new Date(vehicle.purchase_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                  {vehicle.purchase_price && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Purchase Price</p>
-                      <p className="text-base font-semibold">${vehicle.purchase_price.toLocaleString()}</p>
-                    </div>
-                  )}
-                  {vehicle.last_service_date && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Last Service Date</p>
-                      <p className="text-base font-semibold">
-                        {new Date(vehicle.last_service_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                  {vehicle.next_service_date && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Next Service Date</p>
-                      <p className="text-base font-semibold">
-                        {new Date(vehicle.next_service_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                  {vehicle.notes && (
-                    <div className="space-y-1 md:col-span-2 lg:col-span-3">
-                      <p className="text-sm font-medium text-muted-foreground">Notes</p>
-                      <p className="text-base">{vehicle.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* No fields */}
+            {defaultFields.length === 0 && customFields.length === 0 && (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Field Data</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No fields have been configured for this vehicle
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="qr-code" className="space-y-4">
@@ -303,13 +278,6 @@ export default function VehicleDetailPage() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/edit`)}>
-            <Settings className="h-4 w-4 mr-2" />
-            Edit Vehicle
-          </Button>
-        </div>
       </div>
     </DashboardLayout>
   );

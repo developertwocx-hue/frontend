@@ -19,7 +19,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { vehicleTypeService, VehicleType } from "@/lib/vehicles";
 import { useForm } from "react-hook-form";
-import { Truck, ChevronRight } from "lucide-react";
+import { Truck, ChevronRight, Settings } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PageLoading } from "@/components/ui/loading-overlay";
 
 export default function VehicleTypesPage() {
   const router = useRouter();
@@ -27,6 +29,7 @@ export default function VehicleTypesPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingType, setEditingType] = useState<VehicleType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const { register, handleSubmit, reset, setValue } = useForm();
 
   const fetchVehicleTypes = async () => {
@@ -41,7 +44,28 @@ export default function VehicleTypesPage() {
   };
 
   useEffect(() => {
-    fetchVehicleTypes();
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const response = await vehicleTypeService.getAll();
+        if (isMounted) {
+          setVehicleTypes(response.data || []);
+          setLoading(false);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Failed to fetch vehicle types:", error);
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleOpenDialog = (type?: VehicleType) => {
@@ -58,6 +82,7 @@ export default function VehicleTypesPage() {
 
   const handleSave = async (data: any) => {
     try {
+      setSubmitting(true);
       if (editingType) {
         await vehicleTypeService.update(editingType.id, data);
       } else {
@@ -68,6 +93,8 @@ export default function VehicleTypesPage() {
       reset();
     } catch (error) {
       console.error("Failed to save vehicle type:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -83,8 +110,16 @@ export default function VehicleTypesPage() {
   };
 
   const handleCardClick = (typeId: number) => {
-    router.push(`/dashboard/vehicle-types/${typeId}/vehicles`);
+    router.push(`/dashboard/vehicle-types/${typeId}/edit`);
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <PageLoading message="Loading vehicle types..." />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -138,16 +173,10 @@ export default function VehicleTypesPage() {
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>View vehicles</span>
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </CardContent>
             </Card>
           ))}
 
-          {vehicleTypes.length === 0 && !loading && (
+          {vehicleTypes.length === 0 && (
             <Card className="col-span-full border-2 border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
@@ -201,11 +230,18 @@ export default function VehicleTypesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
                 Cancel
               </Button>
-              <Button type="submit">
-                {editingType ? "Update" : "Create"}
+              <Button type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    {editingType ? "Updating..." : "Creating..."}
+                  </>
+                ) : (
+                  editingType ? "Update" : "Create"
+                )}
               </Button>
             </DialogFooter>
           </form>
