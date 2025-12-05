@@ -151,10 +151,6 @@ export default function VehicleDetailPage() {
               <QrCode className="h-4 w-4 mr-2" />
               QR Code
             </TabsTrigger>
-            <TabsTrigger value="documents">
-              <FileText className="h-4 w-4 mr-2" />
-              Documents
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="space-y-4">
@@ -252,27 +248,6 @@ export default function VehicleDetailPage() {
                   <div className="rounded-lg bg-muted p-4 text-xs font-mono">
                     {qrCodeData}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="documents" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Vehicle Documents</CardTitle>
-                <CardDescription>
-                  Upload and manage documents for this vehicle
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Documents Yet</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Start by uploading your first document
-                  </p>
-                  <Button>Upload Document</Button>
                 </div>
               </CardContent>
             </Card>

@@ -10,6 +10,7 @@ import {
   Settings,
   Building2,
   ChevronDown,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -64,6 +65,11 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
           adminOnly: true,
         },
       ],
+    },
+    {
+      title: "Documents",
+      icon: FileText,
+      href: "/dashboard/documents",
     },
   ];
 

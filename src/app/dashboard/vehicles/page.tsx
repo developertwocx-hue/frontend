@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DataTable } from "@/components/data-table";
 import { vehicleService, Vehicle } from "@/lib/vehicles";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, Pencil, Trash2, Plus } from "lucide-react";
+import { ArrowUpDown, Eye, Pencil, Trash2, Plus, FileText } from "lucide-react";
 import { PageLoading } from "@/components/ui/loading-overlay";
 
 export default function VehiclesPage() {
@@ -176,6 +176,17 @@ export default function VehiclesPage() {
               title="Edit"
             >
               <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/dashboard/vehicles/${vehicle.id}/documents`);
+              }}
+              title="Manage Documents"
+            >
+              <FileText className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
