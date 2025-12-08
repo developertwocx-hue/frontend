@@ -134,13 +134,13 @@ export default function EditVehicleTypePage() {
     try {
       setSavingField(true);
       // Parse options if field type is select
-      let options = null;
+      let options: Record<string, string> | null = null;
       if (data.field_type === "select" && data.options) {
         options = {};
         const lines = data.options.split("\n").filter((line: string) => line.trim());
         lines.forEach((line: string) => {
           const [key, value] = line.split(":").map((s: string) => s.trim());
-          if (key && value) {
+          if (key && value && options) {
             options[key] = value;
           }
         });

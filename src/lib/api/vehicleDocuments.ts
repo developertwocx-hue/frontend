@@ -81,9 +81,29 @@ export const getVehicleDocuments = async (vehicleId: number) => {
 };
 
 // Get all documents (across all vehicles)
-export const getAllDocuments = async () => {
-  const response = await api.get('/documents');
+export const getAllDocuments = async (filters?: {
+  document_name?: string;
+  document_number?: string;
+  vehicle_id?: number;
+  document_type_id?: number;
+  status?: string;
+}) => {
+  const response = await api.get('/documents', { params: filters });
   return response.data.data as VehicleDocument[];
+};
+
+// Get autocomplete suggestions for document names
+export const getDocumentNameSuggestions = async (query: string) => {
+  if (query.length < 2) return [];
+  const response = await api.get('/documents/autocomplete/names', { params: { query } });
+  return response.data.data as string[];
+};
+
+// Get autocomplete suggestions for document numbers
+export const getDocumentNumberSuggestions = async (query: string) => {
+  if (query.length < 2) return [];
+  const response = await api.get('/documents/autocomplete/numbers', { params: { query } });
+  return response.data.data as string[];
 };
 
 // Get single document

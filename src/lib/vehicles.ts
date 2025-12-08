@@ -41,6 +41,7 @@ export interface Vehicle {
   tenant_id: string;
   vehicle_type_id: number;
   status: 'active' | 'maintenance' | 'inactive' | 'sold';
+  qr_code_token?: string;
   vehicle_type?: VehicleType;
   field_values?: VehicleFieldValue[];
   created_at: string;
@@ -143,10 +144,25 @@ export const vehicleTypeFieldService = {
 };
 
 export const vehicleService = {
-  async getAll(includeFieldValues: boolean = true) {
-    const response = await api.get('/vehicles', {
-      params: { include_field_values: includeFieldValues },
-    });
+  async getAll(filters?: {
+    vehicle_name?: string;
+    vehicle_type_id?: number;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+    include_field_values?: boolean;
+  }) {
+    const params: any = {
+      include_field_values: filters?.include_field_values ?? true,
+    };
+
+    if (filters?.vehicle_name) params.vehicle_name = filters.vehicle_name;
+    if (filters?.vehicle_type_id) params.vehicle_type_id = filters.vehicle_type_id;
+    if (filters?.status) params.status = filters.status;
+    if (filters?.date_from) params.date_from = filters.date_from;
+    if (filters?.date_to) params.date_to = filters.date_to;
+
+    const response = await api.get('/vehicles', { params });
     return response.data;
   },
 
@@ -178,6 +194,14 @@ export const vehicleService = {
   async delete(id: number) {
     const response = await api.delete(`/vehicles/${id}`);
     return response.data;
+  },
+
+  async getNameSuggestions(query: string): Promise<string[]> {
+    if (query.length < 2) return [];
+    const response = await api.get('/vehicles/autocomplete/names', {
+      params: { query },
+    });
+    return response.data.data || [];
   },
 
   // Helper method to get field value by key

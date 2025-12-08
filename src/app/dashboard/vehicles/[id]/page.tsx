@@ -6,12 +6,11 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { vehicleService, Vehicle, VehicleFieldValue } from "@/lib/vehicles";
-import { ChevronLeft, Download, FileText, QrCode, Settings, Pencil } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
+import { vehicleService, Vehicle } from "@/lib/vehicles";
+import { ChevronLeft, FileText, Pencil, QrCode, Download } from "lucide-react";
 import { PageLoading } from "@/components/ui/loading-overlay";
+import { QRCodeSVG } from "qrcode.react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function VehicleDetailPage() {
   const router = useRouter();
@@ -20,6 +19,7 @@ export default function VehicleDetailPage() {
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showQRDialog, setShowQRDialog] = useState(false);
 
   useEffect(() => {
     const fetchVehicle = async () => {
@@ -53,33 +53,6 @@ export default function VehicleDetailPage() {
     }
   };
 
-  const downloadQRCode = () => {
-    const canvas = document.querySelector("#qr-code-canvas canvas") as HTMLCanvasElement;
-    if (canvas) {
-      const url = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `vehicle-${vehicle?.id}-qr-code.png`;
-      link.click();
-    }
-  };
-
-  // Get field value helper
-  const getFieldValue = (fieldKey: string): string => {
-    if (!vehicle?.field_values) return '-';
-    const fieldValue = vehicle.field_values.find(
-      (fv) => fv.field?.key === fieldKey
-    );
-    return fieldValue?.value || '-';
-  };
-
-  const qrCodeData = JSON.stringify({
-    id: vehicle?.id,
-    type: vehicle?.vehicle_type?.name,
-    make: getFieldValue('make'),
-    model: getFieldValue('model'),
-    year: getFieldValue('year'),
-  });
 
   // Group fields by default vs custom
   const defaultFields = vehicle?.field_values?.filter(fv => fv.field?.tenant_id === null) || [];
@@ -132,6 +105,14 @@ export default function VehicleDetailPage() {
               {vehicle.status}
             </Badge>
             <Button
+              onClick={() => setShowQRDialog(true)}
+              variant="outline"
+              className="gap-2"
+            >
+              <QrCode className="h-4 w-4" />
+              QR Code
+            </Button>
+            <Button
               onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/edit`)}
               className="gap-2"
             >
@@ -141,19 +122,7 @@ export default function VehicleDetailPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="details" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="details">
-              <FileText className="h-4 w-4 mr-2" />
-              Details
-            </TabsTrigger>
-            <TabsTrigger value="qr-code">
-              <QrCode className="h-4 w-4 mr-2" />
-              QR Code
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="details" className="space-y-4">
+        <div className="space-y-4">
             {/* Default Fields */}
             {defaultFields.length > 0 && (
               <Card>
@@ -219,41 +188,76 @@ export default function VehicleDetailPage() {
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
+        </div>
+      </div>
 
-          <TabsContent value="qr-code" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Vehicle QR Code</CardTitle>
-                <CardDescription>
-                  Scan this QR code to quickly access vehicle information
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center space-y-6">
-                <div id="qr-code-canvas" className="p-8 bg-white rounded-lg border-2 border-border">
+      {/* QR Code Dialog */}
+      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vehicle QR Code</DialogTitle>
+            <DialogDescription>
+              Scan this QR code to view vehicle details and documents
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {vehicle.qr_code_token && (
+              <>
+                <div className="bg-white p-6 rounded-lg">
                   <QRCodeSVG
-                    value={qrCodeData}
+                    value={`${window.location.origin}/v/${vehicle.qr_code_token}`}
                     size={256}
                     level="H"
                     includeMargin={true}
                   />
                 </div>
-                <Button onClick={downloadQRCode} className="gap-2">
-                  <Download className="h-4 w-4" />
-                  Download QR Code
-                </Button>
-                <Separator />
-                <div className="w-full space-y-2">
-                  <p className="text-sm font-medium">QR Code Contains:</p>
-                  <div className="rounded-lg bg-muted p-4 text-xs font-mono">
-                    {qrCodeData}
-                  </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  {window.location.origin}/v/{vehicle.qr_code_token}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const svg = document.querySelector('svg');
+                      if (svg) {
+                        // Convert SVG to canvas to download as PNG
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const svgData = new XMLSerializer().serializeToString(svg);
+                        const img = new Image();
+
+                        img.onload = () => {
+                          canvas.width = img.width;
+                          canvas.height = img.height;
+                          ctx?.drawImage(img, 0, 0);
+                          const url = canvas.toDataURL('image/png');
+                          const link = document.createElement('a');
+                          link.download = `vehicle-${vehicle.id}-qr.png`;
+                          link.href = url;
+                          link.click();
+                        };
+
+                        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+                      }
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download QR
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/v/${vehicle.qr_code_token}`);
+                    }}
+                  >
+                    Copy Link
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
