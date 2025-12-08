@@ -62,7 +62,7 @@ export default function VehicleDetailPage() {
 
   // Upload form states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadForm, setUploadForm] = useState<CreateDocumentData>({
+  const [uploadForm, setUploadForm] = useState<Partial<CreateDocumentData>>({
     vehicle_id: vehicleId,
     document_name: "",
     document_number: "",
@@ -140,7 +140,13 @@ export default function VehicleDetailPage() {
     try {
       setUploading(true);
       await createVehicleDocument(vehicleId, {
-        ...uploadForm,
+        vehicle_id: uploadForm.vehicle_id!,
+        document_type_id: uploadForm.document_type_id!,
+        document_name: uploadForm.document_name!,
+        document_number: uploadForm.document_number,
+        issue_date: uploadForm.issue_date,
+        expiry_date: uploadForm.expiry_date,
+        notes: uploadForm.notes,
         file: selectedFile,
       });
       toast.success("Document uploaded successfully");
@@ -261,9 +267,11 @@ export default function VehicleDetailPage() {
     {
       accessorKey: "document_type",
       header: "Type",
-      cell: ({ row }) => (
-        <Badge variant="outline">{row.original.document_type?.name || "N/A"}</Badge>
-      ),
+      cell: ({ row }) => {
+        const docType = row.original.document_type;
+        const typeName = typeof docType === 'string' ? docType : docType?.name || "N/A";
+        return <Badge variant="outline">{typeName}</Badge>;
+      },
     },
     {
       accessorKey: "document_number",
