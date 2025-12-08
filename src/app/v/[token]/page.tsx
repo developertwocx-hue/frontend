@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Download, AlertCircle, ChevronDown, ChevronUp, FileCheck, ScrollText, Shield, Calendar, Wrench, File } from "lucide-react";
+import { ArrowLeft, FileText, Download, AlertCircle, FileCheck, ScrollText, Shield, Calendar, Wrench, File } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FieldValue {
   name: string;
@@ -46,7 +46,6 @@ export default function PublicVehiclePage() {
   const [vehicle, setVehicle] = useState<VehicleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openDocType, setOpenDocType] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -209,122 +208,147 @@ export default function PublicVehiclePage() {
           </div>
         </div>
 
-        {/* Vehicle Details Card */}
-        <Card className="border-2 shadow-lg">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+        {/* Tabs for Vehicle Information and Documents */}
+        <Tabs defaultValue="information" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="information" className="text-base">
+              <FileText className="h-4 w-4 mr-2" />
               Vehicle Information
-            </h3>
-          </div>
-          <div className="p-6">
-            {vehicle.field_values.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {vehicle.field_values.map((field, index) => (
-                  <div key={index} className="bg-muted/50 p-3 rounded-lg">
-                    <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">
-                      {field.name}
-                    </p>
-                    <p className="font-semibold text-lg">
-                      {field.value}{field.unit && ` ${field.unit}`}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No vehicle information available</p>
-            )}
-          </div>
-        </Card>
-
-        {/* Documents Section - Grouped by Type */}
-        {Object.keys(groupedDocuments).length > 0 ? (
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <FileText className="h-6 w-6 text-blue-600" />
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="text-base">
+              <FileCheck className="h-4 w-4 mr-2" />
               Documents
-            </h3>
+            </TabsTrigger>
+          </TabsList>
 
-            {Object.entries(groupedDocuments).map(([docType, docs]) => (
-              <Card key={docType} className="border-2 shadow-md overflow-hidden">
-                <Collapsible
-                  open={openDocType === docType}
-                  onOpenChange={(open) => setOpenDocType(open ? docType : null)}
-                >
-                  <CollapsibleTrigger className="w-full">
-                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-lg">
+          {/* Vehicle Information Tab */}
+          <TabsContent value="information">
+            <Card className="border-2 shadow-lg">
+              <div className="p-6">
+                {vehicle.field_values.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {vehicle.field_values.map((field, index) => (
+                      <div key={index} className="bg-muted/50 p-3 rounded-lg">
+                        <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">
+                          {field.name}
+                        </p>
+                        <p className="font-semibold text-lg">
+                          {field.value}{field.unit && ` ${field.unit}`}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-muted-foreground py-4">No vehicle information available</p>
+                )}
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* Documents Tab */}
+          <TabsContent value="documents">
+            {Object.keys(groupedDocuments).length > 0 ? (
+              <div className="space-y-6">
+                {Object.entries(groupedDocuments).map(([docType, docs]) => (
+                  <Card key={docType} className="border-2 shadow-lg overflow-hidden">
+                    {/* Document Type Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 text-white">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-14 h-14 bg-white/20 rounded-xl shadow-lg">
                           {getDocumentTypeIcon(docType)}
                         </div>
-                        <div className="text-left">
-                          <p className="font-semibold text-lg">{docType}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {docs.length} {docs.length === 1 ? 'document' : 'documents'}
+                        <div className="flex-1">
+                          <h3 className="font-bold text-xl">{docType}</h3>
+                          <p className="text-sm text-white/90 mt-1">
+                            {docs.length} {docs.length === 1 ? 'document available' : 'documents available'}
                           </p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="font-medium">
+                        <Badge variant="secondary" className="px-3 py-1 text-base font-bold">
                           {docs.length}
                         </Badge>
-                        {openDocType === docType ? (
-                          <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        )}
                       </div>
                     </div>
-                  </CollapsibleTrigger>
 
-                  <CollapsibleContent>
-                    <div className="border-t bg-muted/20">
-                      <div className="p-4 space-y-2">
+                    {/* Documents Grid */}
+                    <div className="p-6 bg-gradient-to-br from-background to-muted/20">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {docs.map((doc) => (
                           <div
                             key={doc.id}
-                            className="flex items-center justify-between p-3 bg-background hover:bg-accent rounded-lg cursor-pointer transition-all hover:shadow-md border"
+                            className="group relative p-5 bg-background hover:bg-accent rounded-xl cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] border-2 border-muted hover:border-blue-200"
                             onClick={() => handleDownload(doc)}
                           >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-lg shrink-0">
+                            {/* Document Icon */}
+                            <div className="absolute top-4 right-4">
+                              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
                                 {getDocumentIcon(docType)}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate">{doc.document_name}</p>
-                                {doc.document_number && (
-                                  <p className="text-sm text-muted-foreground">#{doc.document_number}</p>
-                                )}
-                                {doc.expiry_date && (
-                                  <p className={`text-xs font-medium ${doc.is_expired ? 'text-destructive' : 'text-green-600'}`}>
-                                    {doc.is_expired ? '⚠ Expired: ' : '✓ Valid until: '}
-                                    {new Date(doc.expiry_date).toLocaleDateString()}
-                                  </p>
-                                )}
+                            </div>
+
+                            {/* Document Info */}
+                            <div className="pr-16">
+                              <h4 className="font-semibold text-base mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
+                                {doc.document_name}
+                              </h4>
+
+                              {doc.document_number && (
+                                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1">
+                                  <span className="font-medium">Doc #:</span>
+                                  <span className="font-mono">{doc.document_number}</span>
+                                </p>
+                              )}
+
+                              {doc.expiry_date && (
+                                <div className="flex items-center gap-2 mt-3">
+                                  <Badge
+                                    variant={doc.is_expired ? "destructive" : "default"}
+                                    className={`${!doc.is_expired && 'bg-green-500/20 text-green-700 hover:bg-green-500/30 border-green-300'}`}
+                                  >
+                                    {doc.is_expired ? '⚠ Expired' : '✓ Valid'}
+                                  </Badge>
+                                  <span className="text-sm text-muted-foreground">
+                                    {doc.is_expired ? 'Expired on: ' : 'Valid until: '}
+                                    <span className="font-medium">
+                                      {new Date(doc.expiry_date).toLocaleDateString()}
+                                    </span>
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Download Button */}
+                              <div className="mt-4 pt-3 border-t border-muted">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownload(doc);
+                                  }}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download Document
+                                </Button>
                               </div>
                             </div>
-                            <Button size="sm" variant="ghost" className="shrink-0">
-                              <Download className="h-4 w-4 mr-1" />
-                              Download
-                            </Button>
                           </div>
                         ))}
                       </div>
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-12 text-center border-2 border-dashed">
+                <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">No Documents Available</h3>
+                <p className="text-sm text-muted-foreground">
+                  No documents have been uploaded for this vehicle yet
+                </p>
               </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="p-12 text-center border-2 border-dashed">
-            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">No Documents Available</h3>
-            <p className="text-sm text-muted-foreground">
-              No documents have been uploaded for this vehicle yet
-            </p>
-          </Card>
-        )}
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Footer */}
         <div className="text-center py-8 border-t">
