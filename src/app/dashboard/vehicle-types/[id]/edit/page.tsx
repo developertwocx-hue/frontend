@@ -151,11 +151,11 @@ export default function EditVehicleTypePage() {
         name: data.name,
         key: data.key,
         field_type: data.field_type,
-        unit: data.unit || null,
-        description: data.description || null,
+        unit: data.unit || undefined,
+        description: data.description || undefined,
         is_required: data.is_required || false,
         sort_order: parseInt(data.sort_order) || 100,
-        options,
+        options: options || undefined,
       };
 
       if (editingField) {
