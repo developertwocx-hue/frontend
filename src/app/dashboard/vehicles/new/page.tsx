@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import DashboardLayout from "@/components/dashboard-layout";
@@ -29,7 +29,7 @@ type VehicleFormData = {
   [key: string]: any; // For dynamic field values
 };
 
-export default function NewVehiclePage() {
+function NewVehicleForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preSelectedTypeId = searchParams.get("type");
@@ -393,5 +393,17 @@ export default function NewVehiclePage() {
         </form>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function NewVehiclePage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <PageLoading message="Loading vehicle form..." />
+      </DashboardLayout>
+    }>
+      <NewVehicleForm />
+    </Suspense>
   );
 }
