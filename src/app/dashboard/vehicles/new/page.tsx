@@ -23,6 +23,12 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { LoadingOverlay, PageLoading } from "@/components/ui/loading-overlay";
 
+type VehicleFormData = {
+  vehicle_type_id: string;
+  status: string;
+  [key: string]: any; // For dynamic field values
+};
+
 export default function NewVehiclePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,8 +42,9 @@ export default function NewVehiclePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<VehicleFormData>({
     defaultValues: {
+      vehicle_type_id: "",
       status: "active",
     },
   });

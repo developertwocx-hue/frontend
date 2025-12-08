@@ -73,11 +73,26 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
     );
 
     if (document.is_expired || daysUntilExpiry < 0) {
-      return { status: "expired", label: "Expired", variant: "destructive" as const };
+      return {
+        status: "expired",
+        label: "Expired",
+        variant: "destructive" as const,
+        className: ""
+      };
     } else if (daysUntilExpiry <= 30) {
-      return { status: "expiring", label: `Expires in ${daysUntilExpiry} days`, variant: "warning" as const };
+      return {
+        status: "expiring",
+        label: `Expires in ${daysUntilExpiry} days`,
+        variant: "outline" as const,
+        className: "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+      };
     } else {
-      return { status: "valid", label: "Valid", variant: "success" as const };
+      return {
+        status: "valid",
+        label: "Valid",
+        variant: "outline" as const,
+        className: "border-green-500 text-green-700 dark:text-green-400"
+      };
     }
   };
 
@@ -143,7 +158,7 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
             {expiryStatus && (
               <Badge
                 variant={expiryStatus.variant}
-                className="flex items-center gap-1"
+                className={`flex items-center gap-1 ${expiryStatus.className}`}
               >
                 {expiryStatus.status === "expired" && <AlertTriangle className="h-3 w-3" />}
                 {expiryStatus.status === "valid" && <CheckCircle2 className="h-3 w-3" />}

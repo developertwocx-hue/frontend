@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { vehicleService, vehicleTypeService, vehicleTypeFieldService, Vehicle, VehicleType, VehicleTypeField } from "@/lib/vehicles";
+import { vehicleService, vehicleTypeService, vehicleTypeFieldService, Vehicle, VehicleType, VehicleTypeField, VehicleFieldValue } from "@/lib/vehicles";
 import { ChevronLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -45,7 +45,7 @@ export default function EditVehiclePage() {
         setFields(fieldsResponse.data || []);
 
         // Pre-populate field values
-        vehicleData.field_values?.forEach((fv) => {
+        vehicleData.field_values?.forEach((fv: VehicleFieldValue) => {
           if (fv.field) {
             setValue(`field_${fv.field.key}`, fv.value);
           }

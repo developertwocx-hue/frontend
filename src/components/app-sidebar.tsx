@@ -40,11 +40,23 @@ interface AppSidebarProps {
   tenant: any;
 }
 
+type NavItem = {
+  title: string;
+  icon: any;
+  href: string;
+  adminOnly?: boolean;
+  items?: {
+    title: string;
+    href: string;
+    adminOnly?: boolean;
+  }[];
+};
+
 export function AppSidebar({ user, tenant }: AppSidebarProps) {
   const pathname = usePathname();
   const isAdmin = user?.role === "admin";
 
-  const mainNavItems = [
+  const mainNavItems: NavItem[] = [
     {
       title: "Dashboard",
       icon: LayoutDashboard,
@@ -73,7 +85,7 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
     },
   ];
 
-  const settingsNavItems = [
+  const settingsNavItems: NavItem[] = [
     {
       title: "Settings",
       icon: Settings,
