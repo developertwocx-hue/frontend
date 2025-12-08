@@ -85,11 +85,17 @@ export default function DocumentsPage() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (filters?: {
+    document_name?: string;
+    document_number?: string;
+    vehicle_name?: string;
+    document_type_id?: number;
+    status?: string;
+  }) => {
     try {
       setLoading(true);
       const [docsData, vehiclesResponse, typesData] = await Promise.all([
-        getAllDocuments(),
+        getAllDocuments(filters),
         vehicleService.getAll(),
         getDocumentTypes(),
       ]);
