@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { vehicleService, Vehicle } from "@/lib/vehicles";
-import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus } from "lucide-react";
+import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus, X } from "lucide-react";
 import { PageLoading, LoadingOverlay } from "@/components/ui/loading-overlay";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -60,8 +61,8 @@ export default function VehicleDetailPage() {
   const [documentToDelete, setDocumentToDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Upload form states
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Upload form states - Batch upload support
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadForm, setUploadForm] = useState<Partial<CreateDocumentData>>({
     vehicle_id: vehicleId,
     document_name: "",
@@ -70,6 +71,16 @@ export default function VehicleDetailPage() {
     expiry_date: "",
     notes: "",
   });
+  const [batchDocuments, setBatchDocuments] = useState<{
+    file: File;
+    document_type_id?: number;
+    document_name: string;
+    document_number?: string;
+    issue_date?: string;
+    expiry_date?: string;
+    notes?: string;
+  }[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: 'pending' | 'uploading' | 'success' | 'error'}>({});
 
   // Custom type creation
   const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false);
@@ -120,51 +131,92 @@ export default function VehicleDetailPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      setSelectedFiles(filesArray);
+
+      // Initialize batch documents with file names
+      const newBatchDocs = filesArray.map(file => ({
+        file,
+        document_name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+        document_type_id: uploadForm.document_type_id,
+      }));
+      setBatchDocuments(newBatchDocs);
+
+      // Initialize upload progress
+      const progress: {[key: string]: 'pending' | 'uploading' | 'success' | 'error'} = {};
+      filesArray.forEach(file => {
+        progress[file.name] = 'pending';
+      });
+      setUploadProgress(progress);
     }
   };
 
-  const handleUploadSubmit = async (e: React.FormEvent) => {
+  const handleBatchUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile) {
-      toast.error("Please select a file");
+
+    if (batchDocuments.length === 0) {
+      toast.error("Please select at least one file");
       return;
     }
 
-    if (!uploadForm.document_type_id) {
-      toast.error("Please select a document type");
+    // Validate each document has a type
+    const missingType = batchDocuments.find(doc => !doc.document_type_id);
+    if (missingType) {
+      toast.error("Please select a document type for all files");
       return;
     }
 
-    try {
-      setUploading(true);
-      await createVehicleDocument(vehicleId, {
-        vehicle_id: uploadForm.vehicle_id!,
-        document_type_id: uploadForm.document_type_id!,
-        document_name: uploadForm.document_name!,
-        document_number: uploadForm.document_number,
-        issue_date: uploadForm.issue_date,
-        expiry_date: uploadForm.expiry_date,
-        notes: uploadForm.notes,
-        file: selectedFile,
-      });
-      toast.success("Document uploaded successfully");
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Upload each document
+    for (const doc of batchDocuments) {
+      try {
+        setUploadProgress(prev => ({ ...prev, [doc.file.name]: 'uploading' }));
+
+        await createVehicleDocument(vehicleId, {
+          vehicle_id: vehicleId,
+          document_type_id: doc.document_type_id!,
+          document_name: doc.document_name,
+          document_number: doc.document_number,
+          issue_date: doc.issue_date,
+          expiry_date: doc.expiry_date,
+          notes: doc.notes,
+          file: doc.file,
+        });
+
+        setUploadProgress(prev => ({ ...prev, [doc.file.name]: 'success' }));
+        successCount++;
+      } catch (error: any) {
+        console.error(`Failed to upload ${doc.file.name}:`, error);
+        setUploadProgress(prev => ({ ...prev, [doc.file.name]: 'error' }));
+        errorCount++;
+      }
+    }
+
+    setUploading(false);
+
+    // Show result toast
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`Successfully uploaded ${successCount} document${successCount > 1 ? 's' : ''}`);
       setShowUploadDialog(false);
       resetUploadForm();
       // Reload documents
       const docsData = await getVehicleDocuments(vehicleId);
       setDocuments(docsData);
-    } catch (error: any) {
-      console.error("Failed to upload document:", error);
-      toast.error(error.response?.data?.message || "Failed to upload document");
-    } finally {
-      setUploading(false);
+    } else if (successCount > 0 && errorCount > 0) {
+      toast.warning(`Uploaded ${successCount} document${successCount > 1 ? 's' : ''}, ${errorCount} failed`);
+    } else {
+      toast.error("Failed to upload documents");
     }
   };
 
   const resetUploadForm = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
+    setBatchDocuments([]);
+    setUploadProgress({});
     setUploadForm({
       vehicle_id: vehicleId,
       document_name: "",
@@ -350,9 +402,17 @@ export default function VehicleDetailPage() {
     );
   }
 
+  const vehicleName = vehicle.field_values?.find(f => f.field.name.toLowerCase() === 'name')?.value || `Vehicle #${vehicle.id}`;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <Breadcrumbs
+          items={[
+            { label: "Vehicles", href: "/dashboard/vehicles" },
+            { label: vehicleName }
+          ]}
+        />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -364,7 +424,7 @@ export default function VehicleDetailPage() {
             </Button>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">
-                Vehicle #{vehicle.id}
+                {vehicleName}
               </h1>
               <p className="text-muted-foreground mt-1">
                 {vehicle.vehicle_type?.name || "Unknown Type"}
@@ -469,9 +529,9 @@ export default function VehicleDetailPage() {
                 <CardTitle>Vehicle Documents</CardTitle>
                 <CardDescription>Manage all documents related to this vehicle</CardDescription>
               </div>
-              <Button onClick={() => setShowUploadDialog(true)} className="gap-2">
+              <Button onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/documents/upload`)} className="gap-2">
                 <Upload className="h-4 w-4" />
-                Upload Document
+                Upload Documents
               </Button>
             </div>
           </CardHeader>
@@ -489,7 +549,7 @@ export default function VehicleDetailPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Upload documents like insurance, registration, etc.
                 </p>
-                <Button onClick={() => setShowUploadDialog(true)} variant="outline" className="gap-2">
+                <Button onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/documents/upload`)} variant="outline" className="gap-2">
                   <Upload className="h-4 w-4" />
                   Upload First Document
                 </Button>
@@ -504,14 +564,14 @@ export default function VehicleDetailPage() {
         setShowUploadDialog(open);
         if (!open) resetUploadForm();
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload Document</DialogTitle>
+            <DialogTitle>Upload Documents</DialogTitle>
             <DialogDescription>
-              Add a new document for this vehicle
+              Upload one or multiple documents for this vehicle
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleUploadSubmit} className="space-y-4">
+          <form onSubmit={handleBatchUploadSubmit} className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="document_type_id">Document Type *</Label>
@@ -546,38 +606,17 @@ export default function VehicleDetailPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="document_name">Document Name *</Label>
-              <Input
-                id="document_name"
-                value={uploadForm.document_name}
-                onChange={(e) => setUploadForm({ ...uploadForm, document_name: e.target.value })}
-                placeholder="e.g., Insurance Certificate 2025"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="document_number">Document Number</Label>
-              <Input
-                id="document_number"
-                value={uploadForm.document_number}
-                onChange={(e) => setUploadForm({ ...uploadForm, document_number: e.target.value })}
-                placeholder="e.g., INS-2025-12345"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Document File *</Label>
+              <Label>Document Files * (Select multiple files)</Label>
               <label
                 htmlFor="file-upload"
                 className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
               >
-                {selectedFile ? (
+                {selectedFiles.length > 0 ? (
                   <div className="flex flex-col items-center">
                     <FileText className="h-8 w-8 text-primary mb-2" />
-                    <p className="text-sm font-medium">{selectedFile.name}</p>
+                    <p className="text-sm font-medium">{selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected</p>
                     <p className="text-xs text-muted-foreground">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB total
                     </p>
                   </div>
                 ) : (
@@ -587,7 +626,7 @@ export default function VehicleDetailPage() {
                       Click to upload or drag and drop
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      PDF, Image (max 10MB)
+                      PDF, Image - Multiple files supported (max 10MB each)
                     </p>
                   </div>
                 )}
@@ -597,57 +636,174 @@ export default function VehicleDetailPage() {
                   className="hidden"
                   accept=".pdf,.jpg,.jpeg,.png,.gif"
                   onChange={handleFileChange}
+                  multiple
                   required
                 />
               </label>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Batch Documents List */}
+            {batchDocuments.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="issue_date">Issue Date</Label>
-                <Input
-                  id="issue_date"
-                  type="date"
-                  value={uploadForm.issue_date}
-                  onChange={(e) => setUploadForm({ ...uploadForm, issue_date: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expiry_date">Expiry Date</Label>
-                <Input
-                  id="expiry_date"
-                  type="date"
-                  value={uploadForm.expiry_date}
-                  onChange={(e) => setUploadForm({ ...uploadForm, expiry_date: e.target.value })}
-                />
-              </div>
-            </div>
+                <Label className="text-base font-semibold">Files to Upload ({batchDocuments.length})</Label>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-1">
+                  {batchDocuments.map((doc, index) => (
+                    <div key={index} className="border-2 rounded-lg p-4 space-y-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <span className="text-sm font-medium truncate">{doc.file.name}</span>
+                          {uploadProgress[doc.file.name] && (
+                            <Badge
+                              variant={
+                                uploadProgress[doc.file.name] === 'success' ? 'default' :
+                                uploadProgress[doc.file.name] === 'error' ? 'destructive' :
+                                uploadProgress[doc.file.name] === 'uploading' ? 'secondary' : 'outline'
+                              }
+                              className="ml-auto flex-shrink-0"
+                            >
+                              {uploadProgress[doc.file.name] === 'success' && '✓ Uploaded'}
+                              {uploadProgress[doc.file.name] === 'error' && '✗ Failed'}
+                              {uploadProgress[doc.file.name] === 'uploading' && 'Uploading...'}
+                              {uploadProgress[doc.file.name] === 'pending' && 'Pending'}
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setBatchDocuments(prev => prev.filter((_, i) => i !== index));
+                            setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          disabled={uploading}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Document Name *</Label>
+                          <Input
+                            placeholder="e.g., Insurance Certificate 2025"
+                            value={doc.document_name}
+                            onChange={(e) => {
+                              const newDocs = [...batchDocuments];
+                              newDocs[index].document_name = e.target.value;
+                              setBatchDocuments(newDocs);
+                            }}
+                            disabled={uploading}
+                            className="text-sm"
+                          />
+                        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={uploadForm.notes}
-                onChange={(e) => setUploadForm({ ...uploadForm, notes: e.target.value })}
-                placeholder="Additional notes about this document..."
-                rows={3}
-              />
-            </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Document Type *</Label>
+                          <Select
+                            value={doc.document_type_id?.toString() || ""}
+                            onValueChange={(value) => {
+                              const newDocs = [...batchDocuments];
+                              newDocs[index].document_type_id = parseInt(value);
+                              setBatchDocuments(newDocs);
+                            }}
+                            disabled={uploading}
+                          >
+                            <SelectTrigger className="text-sm">
+                              <SelectValue placeholder="Select document type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {documentTypes.map((type) => (
+                                <SelectItem key={type.id} value={type.id.toString()}>
+                                  {type.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Document Number</Label>
+                          <Input
+                            placeholder="e.g., INS-2025-12345"
+                            value={doc.document_number || ''}
+                            onChange={(e) => {
+                              const newDocs = [...batchDocuments];
+                              newDocs[index].document_number = e.target.value;
+                              setBatchDocuments(newDocs);
+                            }}
+                            disabled={uploading}
+                            className="text-sm"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Issue Date</Label>
+                            <Input
+                              type="date"
+                              value={doc.issue_date || ''}
+                              onChange={(e) => {
+                                const newDocs = [...batchDocuments];
+                                newDocs[index].issue_date = e.target.value;
+                                setBatchDocuments(newDocs);
+                              }}
+                              disabled={uploading}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Expiry Date</Label>
+                            <Input
+                              type="date"
+                              value={doc.expiry_date || ''}
+                              onChange={(e) => {
+                                const newDocs = [...batchDocuments];
+                                newDocs[index].expiry_date = e.target.value;
+                                setBatchDocuments(newDocs);
+                              }}
+                              disabled={uploading}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Notes</Label>
+                          <Textarea
+                            placeholder="Additional notes about this document..."
+                            value={doc.notes || ''}
+                            onChange={(e) => {
+                              const newDocs = [...batchDocuments];
+                              newDocs[index].notes = e.target.value;
+                              setBatchDocuments(newDocs);
+                            }}
+                            disabled={uploading}
+                            className="text-sm"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowUploadDialog(false)} disabled={uploading}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={uploading || !selectedFile}>
+              <Button type="submit" disabled={uploading || batchDocuments.length === 0}>
                 {uploading ? (
                   <>
                     <LoadingSpinner size="sm" className="mr-2" />
-                    Uploading...
+                    Uploading {batchDocuments.length} file{batchDocuments.length > 1 ? 's' : ''}...
                   </>
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Upload Document
+                    Upload {batchDocuments.length} Document{batchDocuments.length > 1 ? 's' : ''}
                   </>
                 )}
               </Button>

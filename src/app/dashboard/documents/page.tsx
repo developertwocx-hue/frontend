@@ -28,6 +28,7 @@ import {
 } from "@/lib/api/vehicleDocuments";
 import { vehicleService, type Vehicle } from "@/lib/vehicles";
 import { Download, Pencil, Trash2, Filter, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import {
@@ -463,6 +464,7 @@ export default function DocumentsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <Breadcrumbs items={[{ label: "Documents" }]} />
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">All Documents</h1>

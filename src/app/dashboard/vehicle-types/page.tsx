@@ -22,6 +22,7 @@ import { useForm } from "react-hook-form";
 import { Truck, ChevronRight, Settings } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PageLoading } from "@/components/ui/loading-overlay";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 export default function VehicleTypesPage() {
   const router = useRouter();
@@ -124,6 +125,7 @@ export default function VehicleTypesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <Breadcrumbs items={[{ label: "Vehicle Types" }]} />
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">

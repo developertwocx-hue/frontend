@@ -20,6 +20,7 @@ import { vehicleService, vehicleTypeService, Vehicle, VehicleType } from "@/lib/
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Eye, Pencil, Trash2, Plus, FileText, X, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { PageLoading } from "@/components/ui/loading-overlay";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -374,6 +375,7 @@ export default function VehiclesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <Breadcrumbs items={[{ label: "Vehicles" }]} />
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Vehicles</h1>
