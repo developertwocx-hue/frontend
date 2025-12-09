@@ -29,7 +29,7 @@ export default function VehiclesPage() {
   const [loading, setLoading] = useState(true);
 
   // Filter states
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Temporary filter values (before apply)
   const [tempNameFilter, setTempNameFilter] = useState("");
@@ -334,17 +334,6 @@ export default function VehiclesPage() {
               title="Edit"
             >
               <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/dashboard/vehicles/${vehicle.id}/documents`);
-              }}
-              title="Manage Documents"
-            >
-              <FileText className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"

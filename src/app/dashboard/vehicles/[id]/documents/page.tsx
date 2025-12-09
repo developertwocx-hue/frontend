@@ -12,6 +12,7 @@ import { getVehicleDocuments, deleteVehicleDocument, type VehicleDocument } from
 import { vehicleService, type Vehicle } from "@/lib/vehicles";
 import { Upload, ChevronLeft, FileText, Download, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { ColumnDef } from "@tanstack/react-table";
 import { formatDate } from "@/lib/utils";
 import {
@@ -29,6 +30,7 @@ export default function VehicleDocumentsPage() {
   const router = useRouter();
   const params = useParams();
   const vehicleId = parseInt(params?.id as string);
+  const { setCustomLabel } = useBreadcrumb();
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [documents, setDocuments] = useState<VehicleDocument[]>([]);
@@ -50,8 +52,16 @@ export default function VehicleDocumentsPage() {
         vehicleService.getOne(vehicleId),
         getVehicleDocuments(vehicleId),
       ]);
-      setVehicle(vehicleResponse.data);
+      const vehicleData = vehicleResponse.data;
+      setVehicle(vehicleData);
       setDocuments(docsData);
+
+      // Set custom breadcrumb label with vehicle name
+      const nameField = vehicleData.field_values?.find((fv: any) =>
+        fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+      );
+      const vehicleName = nameField?.value || `Vehicle #${vehicleData.id}`;
+      setCustomLabel(`/dashboard/vehicles/${vehicleId}`, vehicleName);
     } catch (error: any) {
       toast.error("Failed to load data", {
         description: error.response?.data?.message || "Please try again",
@@ -242,7 +252,7 @@ export default function VehicleDocumentsPage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => router.push("/dashboard/vehicles")}
+              onClick={() => router.push(`/dashboard/vehicles/${vehicleId}`)}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>

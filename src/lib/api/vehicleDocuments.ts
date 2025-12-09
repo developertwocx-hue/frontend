@@ -37,6 +37,7 @@ export interface VehicleDocument {
   vehicle?: {
     id: number;
     name: string;
+    vehicle_type_id?: number;
   };
 }
 

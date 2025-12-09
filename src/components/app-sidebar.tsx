@@ -108,8 +108,8 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-3 px-4 py-4">
+      <SidebarHeader className="h-16 border-b border-sidebar-border flex items-center">
+        <div className="flex items-center gap-3 px-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
             <Building2 className="h-5 w-5 text-primary-foreground" />
           </div>

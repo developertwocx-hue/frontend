@@ -36,12 +36,14 @@ import {
 import { vehicleService, type Vehicle } from "@/lib/vehicles";
 import { ChevronLeft, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 
 export default function EditDocumentPage() {
   const router = useRouter();
   const params = useParams();
   const vehicleId = parseInt(params?.id as string);
   const documentId = parseInt(params?.documentId as string);
+  const { setCustomLabel } = useBreadcrumb();
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [document, setDocument] = useState<VehicleDocument | null>(null);
@@ -75,10 +77,18 @@ export default function EditDocumentPage() {
         getVehicleDocument(vehicleId, documentId),
         getDocumentTypesForVehicle(vehicleId),
       ]);
-      setVehicle(vehicleResponse.data);
+      const vehicleData = vehicleResponse.data;
+      setVehicle(vehicleData);
       setDocument(documentData);
       setDocumentTypes(types);
       setSelectedDocumentTypeId(documentData.document_type_id);
+
+      // Set custom breadcrumb label with vehicle name
+      const nameField = vehicleData.field_values?.find((fv: any) =>
+        fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+      );
+      const vehicleName = nameField?.value || `Vehicle #${vehicleData.id}`;
+      setCustomLabel(`/dashboard/vehicles/${vehicleId}`, vehicleName);
 
       // Populate form with existing data
       form.reset({

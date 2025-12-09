@@ -14,11 +14,13 @@ import { ChevronLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { LoadingOverlay, PageLoading } from "@/components/ui/loading-overlay";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 
 export default function EditVehiclePage() {
   const router = useRouter();
   const params = useParams();
   const vehicleId = parseInt(params?.id as string);
+  const { setCustomLabel } = useBreadcrumb();
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [fields, setFields] = useState<VehicleTypeField[]>([]);
@@ -50,6 +52,15 @@ export default function EditVehiclePage() {
             setValue(`field_${fv.field.key}`, fv.value);
           }
         });
+
+        // Set custom breadcrumb label with vehicle name
+        const nameField = vehicleData.field_values?.find((fv: any) =>
+          fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+        );
+        const vehicleName = nameField?.value || vehicleData.field_values?.find((fv: any) =>
+          fv.field && fv.field.name && fv.field.name.toLowerCase() === 'name'
+        )?.value || `Vehicle #${vehicleData.id}`;
+        setCustomLabel(`/dashboard/vehicles/${vehicleId}`, vehicleName);
       } catch (error) {
         console.error("Failed to fetch data:", error);
       } finally {
@@ -111,6 +122,14 @@ export default function EditVehiclePage() {
     );
   }
 
+  // Get vehicle name from field_values for display
+  const nameField = vehicle.field_values?.find((fv: any) =>
+    fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+  );
+  const vehicleName = nameField?.value || vehicle.field_values?.find((fv: any) =>
+    fv.field && fv.field.name && fv.field.name.toLowerCase() === 'name'
+  )?.value || `Vehicle #${vehicle.id}`;
+
   return (
     <DashboardLayout>
       <div className="relative space-y-6">
@@ -126,7 +145,7 @@ export default function EditVehiclePage() {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Edit Vehicle #{vehicle.id}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Edit {vehicleName}</h1>
             <p className="text-muted-foreground mt-1">
               {vehicle.vehicle_type?.name || "Unknown Type"}
             </p>

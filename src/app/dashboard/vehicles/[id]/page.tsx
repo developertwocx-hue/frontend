@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { vehicleService, Vehicle } from "@/lib/vehicles";
-import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus, X } from "lucide-react";
+import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus, X, Eye } from "lucide-react";
 import { PageLoading, LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -21,6 +21,7 @@ import {
   getVehicleDocuments,
   deleteVehicleDocument,
   createVehicleDocument,
+  updateVehicleDocument,
   getDocumentTypesForVehicle,
   type VehicleDocument,
   type DocumentType,
@@ -41,11 +42,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function VehicleDetailPage() {
   const router = useRouter();
   const params = useParams();
   const vehicleId = parseInt(params?.id as string);
+  const { setCustomLabel, clearCustomLabel } = useBreadcrumb();
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +68,11 @@ export default function VehicleDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [documentToEdit, setDocumentToEdit] = useState<VehicleDocument | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   // Upload form states - Batch upload support
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -81,6 +94,11 @@ export default function VehicleDetailPage() {
     notes?: string;
   }[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: 'pending' | 'uploading' | 'success' | 'error'}>({});
+  const [pendingUploads, setPendingUploads] = useState<{
+    file: File;
+    document_type_id: number;
+    document_name: string;
+  }[]>([]);
 
   // Custom type creation
   const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false);
@@ -98,9 +116,19 @@ export default function VehicleDetailPage() {
           getVehicleDocuments(vehicleId),
           getDocumentTypesForVehicle(vehicleId),
         ]);
-        setVehicle(vehicleResponse.data);
+        const vehicleData = vehicleResponse.data;
+        setVehicle(vehicleData);
         setDocuments(docsData);
         setDocumentTypes(typesData);
+
+        // Set custom breadcrumb label with vehicle name
+        const nameField = vehicleData.field_values?.find((fv: any) =>
+          fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+        );
+        const vehicleName = nameField?.value || vehicleData.field_values?.find((fv: any) =>
+          fv.field && fv.field.name && fv.field.name.toLowerCase() === 'name'
+        )?.value || `Vehicle #${vehicleData.id}`;
+        setCustomLabel(`/dashboard/vehicles/${vehicleId}`, vehicleName);
       } catch (error) {
         console.error("Failed to fetch data:", error);
         toast.error("Failed to load vehicle data");
@@ -286,6 +314,191 @@ export default function VehicleDetailPage() {
     window.open(fileUrl, "_blank");
   };
 
+  const handlePreview = (document: VehicleDocument) => {
+    // Remove /api from the URL to get the base URL
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+    const fileUrl = `${baseUrl}/storage/${document.file_path}`;
+    window.open(fileUrl, "_blank");
+  };
+
+  const handleEditDocument = (document: VehicleDocument) => {
+    setDocumentToEdit(document);
+    setEditForm({
+      document_type_id: document.document_type_id,
+      document_name: document.document_name,
+      document_number: document.document_number || "",
+      issue_date: document.issue_date || "",
+      expiry_date: document.expiry_date || "",
+      notes: document.notes || "",
+    });
+    setEditFile(null);
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateDocument = async () => {
+    if (!documentToEdit) return;
+
+    try {
+      setUpdating(true);
+      const updateData: any = { ...editForm };
+      if (editFile) {
+        updateData.file = editFile;
+      }
+
+      await updateVehicleDocument(vehicleId, documentToEdit.id, updateData);
+      toast.success("Document updated successfully");
+
+      // Refresh documents
+      const docsData = await getVehicleDocuments(vehicleId);
+      setDocuments(docsData);
+
+      // Close dialog
+      setShowEditDialog(false);
+      setDocumentToEdit(null);
+      setEditForm({});
+      setEditFile(null);
+    } catch (error: any) {
+      toast.error("Failed to update document", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleQuickUpload = async () => {
+    // First add current selection to queue if exists
+    let allDocs = [...pendingUploads];
+    if (selectedFiles.length > 0) {
+      if (!uploadForm.document_type_id) {
+        toast.error("Please select a document type");
+        return;
+      }
+      allDocs.push({
+        file: selectedFiles[0],
+        document_type_id: uploadForm.document_type_id,
+        document_name: uploadForm.document_name || selectedFiles[0].name.replace(/\.[^/.]+$/, ""),
+      });
+    }
+
+    if (allDocs.length === 0) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const doc of allDocs) {
+        try {
+          await createVehicleDocument(vehicleId, {
+            vehicle_id: vehicleId,
+            document_type_id: doc.document_type_id,
+            document_name: doc.document_name,
+            file: doc.file,
+          });
+          successCount++;
+        } catch (error) {
+          console.error("Upload failed:", error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Uploaded ${successCount} document(s) successfully`);
+      }
+      if (errorCount > 0) {
+        toast.error(`Failed to upload ${errorCount} document(s)`);
+      }
+
+      // Refresh documents list
+      const docsData = await getVehicleDocuments(vehicleId);
+      setDocuments(docsData);
+
+      // Clear form and pending uploads
+      setSelectedFiles([]);
+      setPendingUploads([]);
+      setUploadForm({
+        vehicle_id: vehicleId,
+        document_name: "",
+        document_number: "",
+        issue_date: "",
+        expiry_date: "",
+        notes: "",
+      });
+    } catch (error: any) {
+      toast.error("Failed to upload documents", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddAnother = () => {
+    if (selectedFiles.length === 0) {
+      toast.error("Please select a file");
+      return;
+    }
+
+    if (!uploadForm.document_type_id) {
+      toast.error("Please select a document type");
+      return;
+    }
+
+    // Add current selection to pending uploads
+    setPendingUploads([
+      ...pendingUploads,
+      {
+        file: selectedFiles[0],
+        document_type_id: uploadForm.document_type_id,
+        document_name: uploadForm.document_name || selectedFiles[0].name.replace(/\.[^/.]+$/, ""),
+      }
+    ]);
+
+    // Clear current selection for next document
+    setSelectedFiles([]);
+    setUploadForm({
+      ...uploadForm,
+      document_name: "",
+      document_type_id: undefined,
+    });
+
+    toast.success("Document added to queue");
+  };
+
+  const handleCreateDocumentType = async () => {
+    if (!newTypeName.trim()) {
+      toast.error("Please enter a document type name");
+      return;
+    }
+
+    try {
+      setCreatingType(true);
+      const response = await api.post("/document-types", {
+        name: newTypeName,
+        description: newTypeDescription,
+        vehicle_type_id: vehicle?.vehicle_type_id || null,
+        is_required: false,
+        sort_order: 100,
+      });
+
+      toast.success("Document type created successfully");
+      setDocumentTypes([...documentTypes, response.data.data]);
+      setNewTypeName("");
+      setNewTypeDescription("");
+      setShowCreateTypeDialog(false);
+    } catch (error: any) {
+      toast.error("Failed to create document type", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setCreatingType(false);
+    }
+  };
+
   const getDocumentStatus = (doc: VehicleDocument) => {
     if (!doc.expiry_date) {
       return { status: "active", label: "Active", className: "bg-green-500/20 text-green-700" };
@@ -309,12 +522,30 @@ export default function VehicleDetailPage() {
     {
       accessorKey: "document_name",
       header: "Document Name",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{row.original.document_name}</span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const fullName = row.original.document_name;
+        const displayName = fullName.length > 25
+          ? fullName.substring(0, 25) + "..."
+          : fullName;
+
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 cursor-default">
+                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-medium">{displayName}</span>
+                </div>
+              </TooltipTrigger>
+              {fullName.length > 25 && (
+                <TooltipContent>
+                  <p>{fullName}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
     },
     {
       accessorKey: "document_type",
@@ -347,7 +578,18 @@ export default function VehicleDetailPage() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePreview(row.original);
+            }}
+            title="Preview document"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -358,6 +600,17 @@ export default function VehicleDetailPage() {
             title="Download document"
           >
             <Download className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEditDocument(row.original);
+            }}
+            title="Edit document"
+          >
+            <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -402,17 +655,17 @@ export default function VehicleDetailPage() {
     );
   }
 
-  const vehicleName = vehicle.field_values?.find(f => f.field.name.toLowerCase() === 'name')?.value || `Vehicle #${vehicle.id}`;
+  // Get vehicle name from field_values for display
+  const nameField = vehicle.field_values?.find((fv: any) =>
+    fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+  );
+  const vehicleName = nameField?.value || vehicle.field_values?.find((fv: any) =>
+    fv.field && fv.field.name && fv.field.name.toLowerCase() === 'name'
+  )?.value || `Vehicle #${vehicle.id}`;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <Breadcrumbs
-          items={[
-            { label: "Vehicles", href: "/dashboard/vehicles" },
-            { label: vehicleName }
-          ]}
-        />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -453,87 +706,241 @@ export default function VehicleDetailPage() {
           </div>
         </div>
 
-        <div className="space-y-4">
-            {/* Default Fields */}
-            {defaultFields.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vehicle Information</CardTitle>
-                  <CardDescription>Default fields for this vehicle type</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {defaultFields.map((fv) => (
-                      <div key={fv.id} className="space-y-1">
+        {/* Two Column Layout: Vehicle Info + Upload Form */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column: Vehicle Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Vehicle Information</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {[...defaultFields, ...customFields].length > 0 ? (
+                <div className="divide-y">
+                  {[...defaultFields, ...customFields].map((fv) => (
+                    <div key={fv.id} className="flex items-center py-3 px-6">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-muted-foreground">
                           {fv.field?.name}
                         </p>
-                        <p className="text-base font-semibold">
+                      </div>
+                      <div className="flex-1 text-right">
+                        <p className="text-sm font-semibold">
                           {fv.value}
                           {fv.field?.unit && ` ${fv.field.unit}`}
                         </p>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Custom Fields */}
-            {customFields.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Custom Fields</CardTitle>
-                  <CardDescription>Tenant-specific custom fields</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {customFields.map((fv) => (
-                      <div key={fv.id} className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          {fv.field?.name}
-                        </p>
-                        <p className="text-base font-semibold">
-                          {fv.value}
-                          {fv.field?.unit && ` ${fv.field.unit}`}
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          Custom
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* No fields */}
-            {defaultFields.length === 0 && customFields.length === 0 && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center px-6">
                   <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No Field Data</h3>
                   <p className="text-sm text-muted-foreground">
                     No fields have been configured for this vehicle
                   </p>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Right Column: Document Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Documents</CardTitle>
+              <CardDescription>Add documents to this vehicle</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Action Buttons at Top */}
+              <div className="flex justify-between gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedFiles([]);
+                    setUploadForm({
+                      vehicle_id: vehicleId,
+                      document_name: "",
+                      document_number: "",
+                      issue_date: "",
+                      expiry_date: "",
+                      notes: "",
+                    });
+                    setPendingUploads([]);
+                  }}
+                  disabled={uploading}
+                >
+                  Clear All
+                </Button>
+                <Button
+                  onClick={handleQuickUpload}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* File Upload Dropzone */}
+              <div>
+                <label
+                  htmlFor="quick-file-upload"
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                >
+                  {selectedFiles.length > 0 ? (
+                    <div className="flex flex-col items-center">
+                      <FileText className="h-8 w-8 text-primary mb-2" />
+                      <p className="text-sm font-medium">{selectedFiles[0].name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(selectedFiles[0].size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        Click to upload or drag and drop
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        PDF, Image (max 10MB)
+                      </p>
+                    </div>
+                  )}
+                  <input
+                    id="quick-file-upload"
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png,.gif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 10 * 1024 * 1024) {
+                          toast.error("File too large", {
+                            description: "Maximum file size is 10MB",
+                          });
+                          return;
+                        }
+                        setSelectedFiles([file]);
+                        setUploadForm({
+                          ...uploadForm,
+                          document_name: file.name.replace(/\.[^/.]+$/, ""),
+                        });
+                      }
+                      e.target.value = '';
+                    }}
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+
+              {/* Document Type Toggles */}
+              <div className="space-y-2">
+                <Label>Document Type *</Label>
+                {loadingDocuments ? (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {documentTypes.map((type) => (
+                      <Badge
+                        key={type.id}
+                        variant={
+                          uploadForm.document_type_id === type.id ? "default" : "outline"
+                        }
+                        className="cursor-pointer hover:bg-primary/80 transition-colors px-3 py-1"
+                        onClick={() => {
+                          if (!uploading) {
+                            setUploadForm({
+                              ...uploadForm,
+                              document_type_id:
+                                uploadForm.document_type_id === type.id ? undefined : type.id,
+                            });
+                          }
+                        }}
+                      >
+                        {type.name}
+                      </Badge>
+                    ))}
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer hover:bg-accent transition-colors px-3 py-1"
+                      onClick={() => setShowCreateTypeDialog(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      New Type
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Uploads List */}
+              {pendingUploads.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Ready to Upload ({pendingUploads.length})</Label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                    {pendingUploads.map((doc, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-accent/50 rounded"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{doc.document_name}</p>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {documentTypes.find(t => t.id === doc.document_type_id)?.name}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {(doc.file.size / 1024 / 1024).toFixed(2)} MB
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          onClick={() => {
+                            setPendingUploads(pendingUploads.filter((_, i) => i !== index));
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add Another Document Button */}
+              <Button
+                variant="outline"
+                onClick={handleAddAnother}
+                disabled={uploading}
+                className="w-full"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Another Document
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Documents Section */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Vehicle Documents</CardTitle>
-                <CardDescription>Manage all documents related to this vehicle</CardDescription>
-              </div>
-              <Button onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/documents/upload`)} className="gap-2">
-                <Upload className="h-4 w-4" />
-                Upload Documents
-              </Button>
-            </div>
+            <CardTitle>Vehicle Documents</CardTitle>
+            <CardDescription>Manage all documents related to this vehicle</CardDescription>
           </CardHeader>
           <CardContent>
             {loadingDocuments ? (
@@ -812,6 +1219,164 @@ export default function VehicleDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Document Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+            <DialogDescription>
+              Update document information and optionally replace the file
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Document Type */}
+            <div className="space-y-2">
+              <Label>Document Type *</Label>
+              <Select
+                value={editForm.document_type_id?.toString() || ""}
+                onValueChange={(value) => setEditForm({ ...editForm, document_type_id: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {documentTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                  <div className="border-t mt-1 pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowCreateTypeDialog(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New Type
+                    </Button>
+                  </div>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Document Name */}
+            <div className="space-y-2">
+              <Label>Document Name *</Label>
+              <Input
+                value={editForm.document_name || ""}
+                onChange={(e) => setEditForm({ ...editForm, document_name: e.target.value })}
+                placeholder="e.g., Insurance Certificate 2025"
+              />
+            </div>
+
+            {/* Document Number */}
+            <div className="space-y-2">
+              <Label>Document Number</Label>
+              <Input
+                value={editForm.document_number || ""}
+                onChange={(e) => setEditForm({ ...editForm, document_number: e.target.value })}
+                placeholder="e.g., INS-2025-12345"
+              />
+            </div>
+
+            {/* Current File Info */}
+            {documentToEdit && (
+              <div className="space-y-2">
+                <Label>Current File</Label>
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{documentToEdit.file_path.split('/').pop()}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Replace File */}
+            <div className="space-y-2">
+              <Label>Replace File (Optional)</Label>
+              <Input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast.error("File too large", {
+                        description: "Maximum file size is 10MB",
+                      });
+                      return;
+                    }
+                    setEditFile(file);
+                  }
+                }}
+              />
+              {editFile && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {editFile.name} ({(editFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+            </div>
+
+            {/* Issue Date */}
+            <div className="space-y-2">
+              <Label>Issue Date</Label>
+              <Input
+                type="date"
+                value={editForm.issue_date || ""}
+                onChange={(e) => setEditForm({ ...editForm, issue_date: e.target.value })}
+              />
+            </div>
+
+            {/* Expiry Date */}
+            <div className="space-y-2">
+              <Label>Expiry Date</Label>
+              <Input
+                type="date"
+                value={editForm.expiry_date || ""}
+                onChange={(e) => setEditForm({ ...editForm, expiry_date: e.target.value })}
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={editForm.notes || ""}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                placeholder="Additional notes about this document..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEditDialog(false)}
+              disabled={updating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateDocument}
+              disabled={updating || !editForm.document_name || !editForm.document_type_id}
+            >
+              {updating ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Updating...
+                </>
+              ) : (
+                "Update Document"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -944,7 +1509,7 @@ export default function VehicleDetailPage() {
             </Button>
             <Button
               type="button"
-              onClick={handleCreateCustomType}
+              onClick={handleCreateDocumentType}
               disabled={creatingType || !newTypeName.trim()}
             >
               {creatingType ? (

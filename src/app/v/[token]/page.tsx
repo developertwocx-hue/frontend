@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Download, AlertCircle, FileCheck, ScrollText, Shield, Calendar, Wrench, File } from "lucide-react";
+import { ArrowLeft, FileText, Eye, AlertCircle, FileCheck, ScrollText, Shield, Calendar, Wrench, File } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -315,7 +315,7 @@ export default function PublicVehiclePage() {
                                 </div>
                               )}
 
-                              {/* Download Button */}
+                              {/* Preview Button */}
                               <div className="mt-4 pt-3 border-t border-muted">
                                 <Button
                                   size="sm"
@@ -326,8 +326,8 @@ export default function PublicVehiclePage() {
                                     handleDownload(doc);
                                   }}
                                 >
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download Document
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Preview Document
                                 </Button>
                               </div>
                             </div>

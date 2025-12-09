@@ -20,6 +20,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   getAllDocuments,
   deleteVehicleDocument,
+  updateVehicleDocument,
   getDocumentTypes,
   getDocumentNameSuggestions,
   getDocumentNumberSuggestions,
@@ -27,7 +28,7 @@ import {
   type DocumentType
 } from "@/lib/api/vehicleDocuments";
 import { vehicleService, type Vehicle } from "@/lib/vehicles";
-import { Download, Pencil, Trash2, Filter, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Download, Pencil, Trash2, Filter, X, ChevronDown, ChevronUp, Eye, Plus, FileText } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
@@ -41,6 +42,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import api from "@/lib/api";
 
 export default function DocumentsPage() {
   const router = useRouter();
@@ -52,8 +63,21 @@ export default function DocumentsPage() {
   const [documentToDelete, setDocumentToDelete] = useState<{ vehicleId: number; docId: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Edit modal states
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [documentToEdit, setDocumentToEdit] = useState<VehicleDocument | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [updating, setUpdating] = useState(false);
+
+  // Create type modal states
+  const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
+  const [newTypeDescription, setNewTypeDescription] = useState("");
+  const [creatingType, setCreatingType] = useState(false);
+
   // Filter states
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Temporary filter values (before apply)
   const [tempDocNameFilter, setTempDocNameFilter] = useState("");
@@ -242,6 +266,104 @@ export default function DocumentsPage() {
     window.open(fileUrl, "_blank");
   };
 
+  const handlePreview = (document: VehicleDocument) => {
+    // Remove /api from the URL to get the base URL
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+    const fileUrl = `${baseUrl}/storage/${document.file_path}`;
+    window.open(fileUrl, "_blank");
+  };
+
+  const handleEditDocument = (document: VehicleDocument) => {
+    setDocumentToEdit(document);
+
+    // Convert datetime to date format (yyyy-MM-dd)
+    const formatDateForInput = (dateString: string | null | undefined) => {
+      if (!dateString) return "";
+      return dateString.split('T')[0]; // Extract date part before 'T'
+    };
+
+    setEditForm({
+      document_type_id: document.document_type_id,
+      document_name: document.document_name,
+      document_number: document.document_number || "",
+      issue_date: formatDateForInput(document.issue_date),
+      expiry_date: formatDateForInput(document.expiry_date),
+      notes: document.notes || "",
+    });
+    setEditFile(null);
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateDocument = async () => {
+    if (!documentToEdit) return;
+
+    try {
+      setUpdating(true);
+      const updateData: any = { ...editForm };
+      if (editFile) {
+        updateData.file = editFile;
+      }
+
+      await updateVehicleDocument(documentToEdit.vehicle_id, documentToEdit.id, updateData);
+      toast.success("Document updated successfully");
+
+      // Refresh documents with current filters
+      await loadData({
+        document_name: docNameFilter,
+        document_number: docNumberFilter,
+        vehicle_name: vehicleNameFilter,
+        document_type_id: docTypeFilter !== "all" ? parseInt(docTypeFilter) : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+      });
+
+      // Close dialog
+      setShowEditDialog(false);
+      setDocumentToEdit(null);
+      setEditForm({});
+      setEditFile(null);
+    } catch (error: any) {
+      console.error("Update error:", error);
+      toast.error("Failed to update document", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleCreateDocumentType = async () => {
+    if (!newTypeName.trim()) {
+      toast.error("Please enter a document type name");
+      return;
+    }
+
+    try {
+      setCreatingType(true);
+      // Get vehicle type from the document being edited
+      const vehicleTypeId = documentToEdit?.vehicle?.vehicle_type_id || null;
+
+      const response = await api.post("/document-types", {
+        name: newTypeName,
+        description: newTypeDescription,
+        vehicle_type_id: vehicleTypeId,
+        is_required: false,
+        sort_order: 100,
+      });
+
+      toast.success("Document type created successfully");
+      setDocumentTypes([...documentTypes, response.data.data]);
+      setNewTypeName("");
+      setNewTypeDescription("");
+      setShowCreateTypeDialog(false);
+    } catch (error: any) {
+      toast.error("Failed to create document type", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setCreatingType(false);
+    }
+  };
+
   const getStatusBadge = (doc: VehicleDocument) => {
     if (doc.is_expired) {
       return <Badge className="bg-red-500/20 text-red-700 border-red-500/50">Expired</Badge>;
@@ -415,6 +537,17 @@ export default function DocumentsPage() {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
+                handlePreview(doc);
+              }}
+              title="Preview"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
                 handleDownload(doc);
               }}
               title="Download"
@@ -426,7 +559,7 @@ export default function DocumentsPage() {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                router.push(`/dashboard/vehicles/${doc.vehicle_id}/documents/${doc.id}/edit`);
+                handleEditDocument(doc);
               }}
               title="Edit"
             >
@@ -760,6 +893,223 @@ export default function DocumentsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Document Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+            <DialogDescription>
+              Update document information and optionally replace the file
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Document Type */}
+            <div className="space-y-2">
+              <Label>Document Type *</Label>
+              <Select
+                value={editForm.document_type_id?.toString() || ""}
+                onValueChange={(value) => setEditForm({ ...editForm, document_type_id: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {documentTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                  <div className="border-t mt-1 pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowCreateTypeDialog(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New Type
+                    </Button>
+                  </div>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Document Name */}
+            <div className="space-y-2">
+              <Label>Document Name *</Label>
+              <Input
+                value={editForm.document_name || ""}
+                onChange={(e) => setEditForm({ ...editForm, document_name: e.target.value })}
+                placeholder="e.g., Insurance Certificate 2025"
+              />
+            </div>
+
+            {/* Document Number */}
+            <div className="space-y-2">
+              <Label>Document Number</Label>
+              <Input
+                value={editForm.document_number || ""}
+                onChange={(e) => setEditForm({ ...editForm, document_number: e.target.value })}
+                placeholder="e.g., INS-2025-12345"
+              />
+            </div>
+
+            {/* Current File Info */}
+            {documentToEdit && (
+              <div className="space-y-2">
+                <Label>Current File</Label>
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{documentToEdit.file_path.split('/').pop()}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Replace File */}
+            <div className="space-y-2">
+              <Label>Replace File (Optional)</Label>
+              <Input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast.error("File too large", {
+                        description: "Maximum file size is 10MB",
+                      });
+                      return;
+                    }
+                    setEditFile(file);
+                  }
+                }}
+              />
+              {editFile && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {editFile.name} ({(editFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+            </div>
+
+            {/* Issue Date */}
+            <div className="space-y-2">
+              <Label>Issue Date</Label>
+              <Input
+                type="date"
+                value={editForm.issue_date || ""}
+                onChange={(e) => setEditForm({ ...editForm, issue_date: e.target.value })}
+              />
+            </div>
+
+            {/* Expiry Date */}
+            <div className="space-y-2">
+              <Label>Expiry Date</Label>
+              <Input
+                type="date"
+                value={editForm.expiry_date || ""}
+                onChange={(e) => setEditForm({ ...editForm, expiry_date: e.target.value })}
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={editForm.notes || ""}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                placeholder="Additional notes about this document..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEditDialog(false)}
+              disabled={updating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateDocument}
+              disabled={updating || !editForm.document_name || !editForm.document_type_id}
+            >
+              {updating ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Updating...
+                </>
+              ) : (
+                "Update Document"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Document Type Dialog */}
+      <Dialog open={showCreateTypeDialog} onOpenChange={setShowCreateTypeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Document Type</DialogTitle>
+            <DialogDescription>
+              Add a new document type for {documentToEdit?.vehicle ? `${documentToEdit.vehicle.name}` : 'documents'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="type-name">Type Name *</Label>
+              <Input
+                id="type-name"
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                placeholder="e.g., Insurance Certificate"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type-description">Description</Label>
+              <Textarea
+                id="type-description"
+                value={newTypeDescription}
+                onChange={(e) => setNewTypeDescription(e.target.value)}
+                placeholder="Optional description..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateTypeDialog(false);
+                setNewTypeName("");
+                setNewTypeDescription("");
+              }}
+              disabled={creatingType}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateDocumentType}
+              disabled={creatingType || !newTypeName.trim()}
+            >
+              {creatingType ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Creating...
+                </>
+              ) : (
+                "Create Type"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

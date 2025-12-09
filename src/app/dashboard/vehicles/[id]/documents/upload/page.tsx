@@ -33,8 +33,11 @@ import {
 } from "@/lib/api/vehicleDocuments";
 import api from "@/lib/api";
 import { vehicleService, type Vehicle } from "@/lib/vehicles";
-import { Upload, FileText, ChevronLeft, Plus } from "lucide-react";
+import { Upload, FileText, ChevronLeft, Plus, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import {
   Dialog,
   DialogContent,
@@ -48,12 +51,25 @@ export default function UploadDocumentPage() {
   const router = useRouter();
   const params = useParams();
   const vehicleId = parseInt(params?.id as string);
+  const { setCustomLabel } = useBreadcrumb();
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(true);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Batch upload states
+  const [batchDocuments, setBatchDocuments] = useState<{
+    file: File;
+    document_type_id?: number;
+    document_name: string;
+    document_number?: string;
+    issue_date?: string;
+    expiry_date?: string;
+    notes?: string;
+  }[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: 'pending' | 'uploading' | 'success' | 'error'}>({});
+
   const [uploading, setUploading] = useState(false);
   const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false);
   const [newTypeName, setNewTypeName] = useState("");
@@ -85,8 +101,16 @@ export default function UploadDocumentPage() {
         vehicleService.getOne(vehicleId),
         getDocumentTypesForVehicle(vehicleId),
       ]);
-      setVehicle(vehicleResponse.data);
+      const vehicleData = vehicleResponse.data;
+      setVehicle(vehicleData);
       setDocumentTypes(types);
+
+      // Set custom breadcrumb label with vehicle name
+      const nameField = vehicleData.field_values?.find((fv: any) =>
+        fv.field && fv.field.key && fv.field.key.toLowerCase() === 'name'
+      );
+      const vehicleName = nameField?.value || `Vehicle #${vehicleData.id}`;
+      setCustomLabel(`/dashboard/vehicles/${vehicleId}`, vehicleName);
     } catch (error: any) {
       toast.error("Failed to load data", {
         description: error.response?.data?.message || "Please try again",
@@ -104,17 +128,36 @@ export default function UploadDocumentPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("File too large", {
-          description: "Maximum file size is 10MB",
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+
+      // Validate file sizes
+      const invalidFiles = filesArray.filter(file => file.size > 10 * 1024 * 1024);
+      if (invalidFiles.length > 0) {
+        toast.error("Some files are too large", {
+          description: `Maximum file size is 10MB. ${invalidFiles.length} file(s) exceeded this limit.`,
         });
+        e.target.value = ''; // Reset input
         return;
       }
-      setSelectedFile(file);
+
+      // Initialize batch documents with file names
+      const newBatchDocs = filesArray.map(file => ({
+        file,
+        document_name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+      }));
+      setBatchDocuments(newBatchDocs);
+
+      // Initialize upload progress
+      const progress: {[key: string]: 'pending' | 'uploading' | 'success' | 'error'} = {};
+      filesArray.forEach(file => {
+        progress[file.name] = 'pending';
+      });
+      setUploadProgress(progress);
     }
+
+    // Reset input value after processing to allow selecting the same files again
+    e.target.value = '';
   };
 
   const handleCreateDocumentType = async () => {
@@ -147,27 +190,64 @@ export default function UploadDocumentPage() {
     }
   };
 
-  const onSubmit = async (data: CreateDocumentData) => {
-    if (!selectedFile) {
-      toast.error("Please select a file to upload");
+  const onSubmit = async () => {
+    if (batchDocuments.length === 0) {
+      toast.error("Please select at least one file");
       return;
     }
 
-    try {
-      setUploading(true);
-      await createVehicleDocument(vehicleId, {
-        ...data,
-        file: selectedFile,
-      });
+    // Validate each document has required fields
+    const missingType = batchDocuments.find(doc => !doc.document_type_id);
+    if (missingType) {
+      toast.error("Please select a document type for all files");
+      return;
+    }
 
-      toast.success("Document uploaded successfully");
-      router.push(`/dashboard/vehicles/${vehicleId}/documents`);
-    } catch (error: any) {
-      toast.error("Failed to upload document", {
-        description: error.response?.data?.message || "Please try again",
-      });
-    } finally {
-      setUploading(false);
+    const missingName = batchDocuments.find(doc => !doc.document_name?.trim());
+    if (missingName) {
+      toast.error("Please provide a document name for all files");
+      return;
+    }
+
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Upload each document sequentially
+    for (const doc of batchDocuments) {
+      try {
+        setUploadProgress(prev => ({ ...prev, [doc.file.name]: 'uploading' }));
+
+        await createVehicleDocument(vehicleId, {
+          vehicle_id: vehicleId,
+          document_type_id: doc.document_type_id!,
+          document_name: doc.document_name,
+          document_number: doc.document_number,
+          issue_date: doc.issue_date,
+          expiry_date: doc.expiry_date,
+          notes: doc.notes,
+          file: doc.file,
+        });
+
+        setUploadProgress(prev => ({ ...prev, [doc.file.name]: 'success' }));
+        successCount++;
+      } catch (error: any) {
+        console.error(`Failed to upload ${doc.file.name}:`, error);
+        setUploadProgress(prev => ({ ...prev, [doc.file.name]: 'error' }));
+        errorCount++;
+      }
+    }
+
+    setUploading(false);
+
+    // Show result and redirect
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`Successfully uploaded ${successCount} document${successCount > 1 ? 's' : ''}`);
+      router.push(`/dashboard/vehicles/${vehicleId}`);
+    } else if (successCount > 0 && errorCount > 0) {
+      toast.warning(`Uploaded ${successCount} document${successCount > 1 ? 's' : ''}, ${errorCount} failed`);
+    } else {
+      toast.error("Failed to upload documents");
     }
   };
 
@@ -207,7 +287,7 @@ export default function UploadDocumentPage() {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Upload Document</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Upload Documents</h1>
             <p className="text-muted-foreground mt-1">
               {getVehicleName()} - {vehicle.vehicle_type?.name || "Unknown Type"}
             </p>
@@ -218,7 +298,11 @@ export default function UploadDocumentPage() {
         <Card>
           <CardHeader>
             <CardTitle>Document Information</CardTitle>
-            <CardDescription>Fill in the details for this document</CardDescription>
+            <CardDescription>
+              {batchDocuments.length > 0
+                ? `Fill in the details for ${batchDocuments.length} document${batchDocuments.length > 1 ? 's' : ''}`
+                : "Select one or more files to upload"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loadingTypes ? (
@@ -226,193 +310,265 @@ export default function UploadDocumentPage() {
                 <LoadingSpinner size="lg" />
               </div>
             ) : (
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="document_type_id"
-                    rules={{ required: "Document type is required" }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between">
-                          <FormLabel>Document Type *</FormLabel>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowCreateTypeDialog(true)}
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Create Custom Type
-                          </Button>
+              <div className="space-y-6">
+                {/* File Upload Zone */}
+                <div>
+                  <Label>Document Files *</Label>
+                  <div className="mt-2">
+                    <label
+                      htmlFor="file-upload"
+                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                    >
+                      {batchDocuments.length > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <FileText className="h-8 w-8 text-primary mb-2" />
+                          <p className="text-sm font-medium">
+                            {batchDocuments.length} file{batchDocuments.length > 1 ? 's' : ''} selected
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {(batchDocuments.reduce((acc, doc) => acc + doc.file.size, 0) / 1024 / 1024).toFixed(2)} MB total
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Click to select different files
+                          </p>
                         </div>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          value={field.value?.toString() || ""}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select document type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {documentTypes.map((type) => (
-                              <SelectItem key={type.id} value={type.id.toString()}>
-                                {type.name} ({type.scope_type}
-                                {type.is_required ? " • Required" : ""})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Select the type of document you're uploading or create a custom one
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            Click to upload or drag and drop
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            PDF, Image (max 10MB per file) - Multiple files supported
+                          </p>
+                        </div>
+                      )}
+                      <input
+                        id="file-upload"
+                        type="file"
+                        multiple
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png,.gif"
+                        onChange={handleFileChange}
+                        disabled={uploading}
+                      />
+                    </label>
+                  </div>
+                </div>
 
-                  <FormField
-                    control={form.control}
-                    name="document_name"
-                    rules={{ required: "Document name is required" }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Document Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Insurance Certificate 2025" {...field} />
-                        </FormControl>
-                        <FormDescription>A descriptive name for this document</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="document_number"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Document Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., INS-2025-12345" {...field} />
-                        </FormControl>
-                        <FormDescription>Official document number or reference</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div>
-                    <FormLabel>Document File *</FormLabel>
-                    <div className="mt-2">
-                      <label
-                        htmlFor="file-upload"
-                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                {/* Batch Documents Grid */}
+                {batchDocuments.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Documents to Upload</h3>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setBatchDocuments([]);
+                          setUploadProgress({});
+                        }}
+                        disabled={uploading}
                       >
-                        {selectedFile ? (
-                          <div className="flex flex-col items-center">
-                            <FileText className="h-8 w-8 text-primary mb-2" />
-                            <p className="text-sm font-medium">{selectedFile.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center">
-                            <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">
-                              Click to upload or drag and drop
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              PDF, Image (max 10MB)
-                            </p>
-                          </div>
-                        )}
-                        <input
-                          id="file-upload"
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.jpg,.jpeg,.png,.gif"
-                          onChange={handleFileChange}
-                        />
-                      </label>
+                        <X className="h-4 w-4 mr-1" />
+                        Clear All
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {batchDocuments.map((doc, index) => (
+                        <Card key={`${doc.file.name}-${index}`} className="relative">
+                          <CardHeader className="pb-3">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium break-all line-clamp-2" title={doc.file.name}>
+                                      {doc.file.name}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 flex-shrink-0"
+                                  onClick={() => {
+                                    const newDocs = batchDocuments.filter((_, i) => i !== index);
+                                    setBatchDocuments(newDocs);
+                                    const newProgress = { ...uploadProgress };
+                                    delete newProgress[doc.file.name];
+                                    setUploadProgress(newProgress);
+                                  }}
+                                  disabled={uploading}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs text-muted-foreground">
+                                  {(doc.file.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                                {uploadProgress[doc.file.name] && (
+                                  <Badge
+                                    variant={
+                                      uploadProgress[doc.file.name] === 'success' ? 'default' :
+                                      uploadProgress[doc.file.name] === 'error' ? 'destructive' :
+                                      uploadProgress[doc.file.name] === 'uploading' ? 'secondary' :
+                                      'outline'
+                                    }
+                                  >
+                                    {uploadProgress[doc.file.name]}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Document Type *</Label>
+                              <Select
+                                value={doc.document_type_id?.toString() || ""}
+                                onValueChange={(value) => {
+                                  const newDocs = [...batchDocuments];
+                                  newDocs[index].document_type_id = parseInt(value);
+                                  setBatchDocuments(newDocs);
+                                }}
+                                disabled={uploading}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {documentTypes.map((type) => (
+                                    <SelectItem key={type.id} value={type.id.toString()}>
+                                      {type.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Document Name *</Label>
+                              <Input
+                                value={doc.document_name}
+                                onChange={(e) => {
+                                  const newDocs = [...batchDocuments];
+                                  newDocs[index].document_name = e.target.value;
+                                  setBatchDocuments(newDocs);
+                                }}
+                                placeholder="e.g., Insurance Certificate 2025"
+                                disabled={uploading}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Document Number</Label>
+                              <Input
+                                value={doc.document_number || ""}
+                                onChange={(e) => {
+                                  const newDocs = [...batchDocuments];
+                                  newDocs[index].document_number = e.target.value;
+                                  setBatchDocuments(newDocs);
+                                }}
+                                placeholder="e.g., INS-2025-12345"
+                                disabled={uploading}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Issue Date</Label>
+                                <Input
+                                  type="date"
+                                  value={doc.issue_date || ""}
+                                  onChange={(e) => {
+                                    const newDocs = [...batchDocuments];
+                                    newDocs[index].issue_date = e.target.value;
+                                    setBatchDocuments(newDocs);
+                                  }}
+                                  disabled={uploading}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Expiry Date</Label>
+                                <Input
+                                  type="date"
+                                  value={doc.expiry_date || ""}
+                                  onChange={(e) => {
+                                    const newDocs = [...batchDocuments];
+                                    newDocs[index].expiry_date = e.target.value;
+                                    setBatchDocuments(newDocs);
+                                  }}
+                                  disabled={uploading}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Notes</Label>
+                              <Textarea
+                                value={doc.notes || ""}
+                                onChange={(e) => {
+                                  const newDocs = [...batchDocuments];
+                                  newDocs[index].notes = e.target.value;
+                                  setBatchDocuments(newDocs);
+                                }}
+                                placeholder="Additional notes..."
+                                rows={2}
+                                disabled={uploading}
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCreateTypeDialog(true)}
+                        disabled={uploading}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create Custom Type
+                      </Button>
+                      <div className="flex gap-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/vehicles/${vehicleId}`)}
+                          disabled={uploading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={onSubmit}
+                          disabled={uploading || batchDocuments.length === 0}
+                        >
+                          {uploading ? (
+                            <>
+                              <LoadingSpinner size="sm" className="mr-2" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="mr-2 h-4 w-4" />
+                              Upload {batchDocuments.length} Document{batchDocuments.length > 1 ? 's' : ''}
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="issue_date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Issue Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="expiry_date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Expiry Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Notes</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Additional notes about this document..."
-                            rows={3}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex gap-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/documents`)}
-                      disabled={uploading}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={uploading || !selectedFile}>
-                      {uploading ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Upload Document
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

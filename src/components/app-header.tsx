@@ -25,6 +25,7 @@ import { useTheme } from "next-themes";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import React from "react";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 
 interface AppHeaderProps {
   user?: any;
@@ -34,17 +35,54 @@ interface AppHeaderProps {
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const pathname = usePathname();
   const { setTheme } = useTheme();
+  const { customLabels } = useBreadcrumb();
 
   const generateBreadcrumbs = () => {
     const paths = pathname.split("/").filter(Boolean);
     const breadcrumbs = [];
 
     for (let i = 0; i < paths.length; i++) {
+      const segment = paths[i];
       const href = "/" + paths.slice(0, i + 1).join("/");
-      const label = paths[i]
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+
+      let label;
+
+      if (/^\d+$/.test(segment)) {
+        // Handle numeric IDs - insert custom name first, then the next segment
+        const isLastSegment = i === paths.length - 1;
+
+        // Check if there's a custom label for this ID path
+        if (customLabels[href]) {
+          // Add the vehicle/entity name as a breadcrumb
+          breadcrumbs.push({
+            href,
+            label: customLabels[href],
+            isLast: isLastSegment,
+          });
+        }
+
+        // If this is the last segment, we're done
+        // Otherwise, continue to the next segment
+        continue;
+      } else if (/^[0-9a-f-]{36}$/i.test(segment)) {
+        // Handle UUIDs - same logic
+        const isLastSegment = i === paths.length - 1;
+
+        if (customLabels[href]) {
+          breadcrumbs.push({
+            href,
+            label: customLabels[href],
+            isLast: isLastSegment,
+          });
+        }
+        continue;
+      } else {
+        // Regular segment - format as title case
+        label = segment
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+      }
 
       breadcrumbs.push({
         href,
