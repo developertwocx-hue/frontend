@@ -308,15 +308,15 @@ export default function VehicleDetailPage() {
   };
 
   const handleDownload = (document: VehicleDocument) => {
-    // Remove /api from the URL to get the base URL
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+    // Remove /api from the URL to get the base URL, fallback to window origin for production
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
     const fileUrl = `${baseUrl}/storage/${document.file_path}`;
     window.open(fileUrl, "_blank");
   };
 
   const handlePreview = (document: VehicleDocument) => {
-    // Remove /api from the URL to get the base URL
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+    // Remove /api from the URL to get the base URL, fallback to window origin for production
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
     const fileUrl = `${baseUrl}/storage/${document.file_path}`;
     window.open(fileUrl, "_blank");
   };

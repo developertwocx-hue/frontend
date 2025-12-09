@@ -169,7 +169,7 @@ export const deleteVehicleDocument = async (vehicleId: number, documentId: numbe
 
 // Download document
 export const downloadDocument = (filePath: string) => {
-  // Assuming files are served from Laravel's public storage
-  const baseURL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+  // Assuming files are served from Laravel's public storage, fallback to window origin for production
+  const baseURL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
   return `${baseURL}/storage/${filePath}`;
 };
