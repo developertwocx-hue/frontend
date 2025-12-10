@@ -196,6 +196,29 @@ export const vehicleService = {
     return response.data;
   },
 
+  async bulkDelete(ids: number[]) {
+    const response = await api.post('/vehicles/bulk-delete', { ids });
+    return response.data;
+  },
+
+  async getStats(filters?: {
+    vehicle_name?: string;
+    vehicle_type_id?: number;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+  }) {
+    const params: any = {};
+    if (filters?.vehicle_name) params.vehicle_name = filters.vehicle_name;
+    if (filters?.vehicle_type_id) params.vehicle_type_id = filters.vehicle_type_id;
+    if (filters?.status) params.status = filters.status;
+    if (filters?.date_from) params.date_from = filters.date_from;
+    if (filters?.date_to) params.date_to = filters.date_to;
+
+    const response = await api.get('/vehicles/stats', { params });
+    return response.data;
+  },
+
   async getNameSuggestions(query: string): Promise<string[]> {
     if (query.length < 2) return [];
     const response = await api.get('/vehicles/autocomplete/names', {

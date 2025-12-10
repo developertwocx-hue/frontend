@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,11 @@ import {
   type DocumentType
 } from "@/lib/api/vehicleDocuments";
 import { vehicleService, type Vehicle } from "@/lib/vehicles";
-import { Download, Pencil, Trash2, Filter, X, ChevronDown, ChevronUp, Eye, Plus, FileText } from "lucide-react";
+import { Download, Pencil, Trash2, Filter, X, ChevronDown, ChevronUp, Eye, Plus, FileText, CheckCircle, AlertCircle, Clock, XCircle } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,12 +54,20 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import api from "@/lib/api";
 
-export default function DocumentsPage() {
+function DocumentsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<VehicleDocument[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [quickStats, setQuickStats] = useState({
+    total: 0,
+    expired: 0,
+    expiring: 0,
+    valid: 0,
+    noExpiry: 0,
+  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<{ vehicleId: number; docId: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -106,8 +115,20 @@ export default function DocumentsPage() {
   const [vehicleNameSuggestions, setVehicleNameSuggestions] = useState<string[]>([]);
   const [selectedVehicleNameIndex, setSelectedVehicleNameIndex] = useState(-1);
 
+  // Bulk delete states
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
-    loadData();
+    // Check for URL parameter to apply expiring filter
+    const filterParam = searchParams?.get("filter");
+    if (filterParam === "expiring") {
+      setStatusFilter("expiring");
+      setTempStatusFilter("expiring");
+      setShowFilters(true);
+      loadData({ status: "expiring" });
+    } else {
+      loadData();
+    }
   }, []);
 
   const loadData = async (filters?: {
@@ -119,14 +140,25 @@ export default function DocumentsPage() {
   }) => {
     try {
       setLoading(true);
-      const [docsData, vehiclesResponse, typesData] = await Promise.all([
-        getAllDocuments(filters),
-        vehicleService.getAll(),
-        getDocumentTypes(),
-      ]);
+
+      // Fetch data sequentially
+      const docsData = await getAllDocuments(filters);
       setDocuments(docsData);
+
+      const vehiclesResponse = await vehicleService.getAll();
       setVehicles(vehiclesResponse.data);
+
+      const typesData = await getDocumentTypes();
       setDocumentTypes(typesData);
+
+      const statsData = await api.get('/documents/stats', { params: filters });
+      setQuickStats(statsData.data.data || {
+        total: 0,
+        expired: 0,
+        expiring: 0,
+        valid: 0,
+        noExpiry: 0,
+      });
     } catch (error: any) {
       toast.error("Failed to load documents", {
         description: error.response?.data?.message || "Please try again",
@@ -256,6 +288,30 @@ export default function DocumentsPage() {
       });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const selectedIds = Object.keys(selectedRows).filter(id => selectedRows[id]).map(Number);
+
+    if (selectedIds.length === 0) return;
+
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} document(s)?`)) return;
+
+    try {
+      setLoading(true);
+      // Delete documents by their IDs using the bulk delete API
+      await api.post('/documents/bulk-delete', { ids: selectedIds });
+      toast.success(`Successfully deleted ${selectedIds.length} document(s)`);
+      setSelectedRows({});
+      // Reload data with current filters
+      await applyFilters();
+    } catch (error: any) {
+      toast.error("Failed to delete documents", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -484,6 +540,39 @@ export default function DocumentsPage() {
 
   const columns: ColumnDef<VehicleDocument>[] = [
     {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => {
+            table.toggleAllPageRowsSelected(!!value);
+            const newSelectedRows: Record<string, boolean> = {};
+            if (value) {
+              table.getRowModel().rows.forEach((row) => {
+                newSelectedRows[row.original.id] = true;
+              });
+            }
+            setSelectedRows(newSelectedRows);
+          }}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={selectedRows[row.original.id] || false}
+          onCheckedChange={(value) => {
+            setSelectedRows((prev) => ({
+              ...prev,
+              [row.original.id]: !!value,
+            }));
+          }}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
       accessorKey: "document_type",
       header: "Document Type",
       cell: ({ row }) => {
@@ -605,6 +694,74 @@ export default function DocumentsPage() {
               View and manage all vehicle documents across your fleet
             </p>
           </div>
+          {Object.values(selectedRows).filter(Boolean).length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={loading}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete ({Object.values(selectedRows).filter(Boolean).length})
+            </Button>
+          )}
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.total}</div>
+              <p className="text-xs text-muted-foreground">All documents</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Valid</CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.valid}</div>
+              <p className="text-xs text-muted-foreground">Not expiring soon</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.expiring}</div>
+              <p className="text-xs text-muted-foreground">Within 30 days</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Expired</CardTitle>
+              <XCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.expired}</div>
+              <p className="text-xs text-muted-foreground">Needs renewal</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">No Expiry</CardTitle>
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.noExpiry}</div>
+              <p className="text-xs text-muted-foreground">Permanent docs</p>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -1133,5 +1290,19 @@ export default function DocumentsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </DashboardLayout>
+  );
+}
+
+export default function DocumentsPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <LoadingSpinner size="lg" />
+        </div>
+      </DashboardLayout>
+    }>
+      <DocumentsPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,23 @@ import {
 import { DataTable } from "@/components/data-table";
 import { vehicleService, vehicleTypeService, Vehicle, VehicleType } from "@/lib/vehicles";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, Pencil, Trash2, Plus, FileText, X, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUpDown, Eye, Pencil, Trash2, Plus, FileText, X, Filter, ChevronDown, ChevronUp, Truck, CheckCircle, Wrench, XCircle, Upload } from "lucide-react";
 import { PageLoading } from "@/components/ui/loading-overlay";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function VehiclesPage() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+  const [quickStats, setQuickStats] = useState({
+    total: 0,
+    active: 0,
+    maintenance: 0,
+    inactive: 0,
+  });
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -78,12 +86,21 @@ export default function VehiclesPage() {
   }) => {
     try {
       setLoading(true);
-      const [vehiclesResponse, typesResponse] = await Promise.all([
-        vehicleService.getAll(filters),
-        vehicleTypeService.getAll(),
-      ]);
+
+      // Fetch data sequentially
+      const vehiclesResponse = await vehicleService.getAll(filters);
       setVehicles(vehiclesResponse.data || []);
+
+      const typesResponse = await vehicleTypeService.getAll();
       setVehicleTypes(typesResponse.data || []);
+
+      const statsResponse = await vehicleService.getStats(filters);
+      setQuickStats(statsResponse.data || {
+        total: 0,
+        active: 0,
+        maintenance: 0,
+        inactive: 0,
+      });
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -103,6 +120,27 @@ export default function VehiclesPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    const selectedIds = Object.keys(selectedRows).filter(id => selectedRows[id]).map(Number);
+
+    if (selectedIds.length === 0) return;
+
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} vehicle(s)?`)) return;
+
+    try {
+      setLoading(true);
+      await vehicleService.bulkDelete(selectedIds);
+      setSelectedRows({});
+      // Refresh with current filters
+      await applyFilters();
+    } catch (error) {
+      console.error("Failed to delete vehicles:", error);
+      alert("Failed to delete vehicles. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
@@ -111,8 +149,6 @@ export default function VehiclesPage() {
         return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50";
       case "inactive":
         return "bg-gray-500/20 text-gray-700 border-gray-500/50";
-      case "sold":
-        return "bg-blue-500/20 text-blue-700 border-blue-500/50";
       default:
         return "";
     }
@@ -237,6 +273,39 @@ export default function VehiclesPage() {
   const hasActiveFilters = nameFilter || typeFilter !== "all" || statusFilter !== "all" || dateFromFilter || dateToFilter;
 
   const columns: ColumnDef<Vehicle>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => {
+            table.toggleAllPageRowsSelected(!!value);
+            const newSelectedRows: Record<string, boolean> = {};
+            if (value) {
+              table.getRowModel().rows.forEach((row) => {
+                newSelectedRows[row.original.id] = true;
+              });
+            }
+            setSelectedRows(newSelectedRows);
+          }}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={selectedRows[row.original.id] || false}
+          onCheckedChange={(value) => {
+            setSelectedRows((prev) => ({
+              ...prev,
+              [row.original.id]: !!value,
+            }));
+          }}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
     {
       accessorKey: "id",
       header: "ID",
@@ -370,10 +439,76 @@ export default function VehiclesPage() {
             <h1 className="text-3xl font-bold tracking-tight">Vehicles</h1>
             <p className="text-muted-foreground mt-2">Manage your fleet vehicles</p>
           </div>
-          <Button onClick={() => router.push("/dashboard/vehicles/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Vehicle
-          </Button>
+          <div className="flex items-center gap-2">
+            {Object.values(selectedRows).filter(Boolean).length > 0 && (
+              <Button
+                variant="destructive"
+                onClick={handleBulkDelete}
+                disabled={loading}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete ({Object.values(selectedRows).filter(Boolean).length})
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => router.push("/dashboard/vehicles/import")}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import Vehicles
+            </Button>
+            <Button onClick={() => router.push("/dashboard/vehicles/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Vehicle
+            </Button>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+              <Truck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.total}</div>
+              <p className="text-xs text-muted-foreground">All vehicles</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active</CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.active}</div>
+              <p className="text-xs text-muted-foreground">Currently operational</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
+              <Wrench className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.maintenance}</div>
+              <p className="text-xs text-muted-foreground">Under maintenance</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Inactive</CardTitle>
+              <XCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{quickStats.inactive}</div>
+              <p className="text-xs text-muted-foreground">Not in use</p>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -504,7 +639,6 @@ export default function VehiclesPage() {
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="maintenance">Maintenance</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="sold">Sold</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

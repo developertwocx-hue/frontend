@@ -168,12 +168,6 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground text-center">
-            Don't have an account?{" "}
-            <Link href="/signup" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
-          </p>
-          <p className="text-sm text-muted-foreground text-center">
             Want to register your business?{" "}
             <Link href="/register-business" className="text-primary hover:underline font-medium">
               Register Business

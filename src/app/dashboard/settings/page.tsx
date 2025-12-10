@@ -11,12 +11,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { tenantService, Tenant } from "@/lib/tenant";
+import { AlertTriangle, Info, Lock } from "lucide-react";
+import { toast } from "sonner";
+import api from "@/lib/api";
 
 export default function SettingsPage() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const { register, handleSubmit, setValue } = useForm();
+
+  // Password change states
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,12 +51,65 @@ export default function SettingsPage() {
   const onSubmit = async (data: any) => {
     setLoading(true);
     try {
-      await tenantService.updateTenant(data);
-      alert("Settings updated successfully!");
+      const response = await tenantService.updateTenant(data);
+      const updatedTenant = response.data;
+
+      // Update local state
+      setTenant(updatedTenant);
+
+      // Update localStorage to refresh sidebar immediately
+      localStorage.setItem("tenant", JSON.stringify(updatedTenant));
+
+      // Dispatch custom event to notify dashboard layout
+      window.dispatchEvent(new CustomEvent("tenantUpdated", { detail: updatedTenant }));
+
+      toast.success("Settings updated successfully!");
     } catch (error: any) {
-      alert(error.response?.data?.message || "Failed to update settings");
+      toast.error("Failed to update settings", {
+        description: error.response?.data?.message || "Please try again",
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords don't match", {
+        description: "Please make sure your new password and confirmation match",
+      });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("Password too short", {
+        description: "Password must be at least 8 characters long",
+      });
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await api.post("/auth/change-password", {
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: confirmPassword,
+      });
+
+      toast.success("Password changed successfully!");
+
+      // Clear form
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error("Failed to change password", {
+        description: error.response?.data?.message || "Please check your current password and try again",
+      });
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -55,7 +117,7 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
             Settings
@@ -67,9 +129,7 @@ export default function SettingsPage() {
           <Card className="border-muted-foreground/20 bg-muted">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+                <AlertTriangle className="w-5 h-5 text-muted-foreground" />
                 <p className="text-sm text-foreground">
                   Only business administrators can modify these settings.
                 </p>
@@ -87,7 +147,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div className="space-y-4">
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="name">Business Name</Label>
                   <Input
@@ -116,7 +176,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2 lg:col-span-3">
                   <Label htmlFor="address">Business Address</Label>
                   <Textarea
                     id="address"
@@ -170,9 +230,7 @@ export default function SettingsPage() {
 
               <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  <Info className="w-5 h-5 text-primary mt-0.5" />
                   <div className="flex-1">
                     <p className="text-sm font-medium">
                       30-Day Free Trial
@@ -213,6 +271,78 @@ export default function SettingsPage() {
                 </Badge>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Change Password</CardTitle>
+            <CardDescription>
+              Update your account password
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordChange} className="space-y-6">
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="current_password">Current Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="current_password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new_password">New Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="new_password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pl-10"
+                      required
+                      minLength={8}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Must be at least 8 characters
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirm_password">Confirm New Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="confirm_password"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10"
+                      required
+                      minLength={8}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                className="w-full"
+              >
+                {passwordLoading ? "Changing Password..." : "Change Password"}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>

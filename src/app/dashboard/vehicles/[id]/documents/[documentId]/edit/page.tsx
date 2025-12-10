@@ -72,16 +72,18 @@ export default function EditDocumentPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [vehicleResponse, documentData, types] = await Promise.all([
-        vehicleService.getOne(vehicleId),
-        getVehicleDocument(vehicleId, documentId),
-        getDocumentTypesForVehicle(vehicleId),
-      ]);
+
+      // Fetch data sequentially
+      const vehicleResponse = await vehicleService.getOne(vehicleId);
       const vehicleData = vehicleResponse.data;
       setVehicle(vehicleData);
+
+      const documentData = await getVehicleDocument(vehicleId, documentId);
       setDocument(documentData);
-      setDocumentTypes(types);
       setSelectedDocumentTypeId(documentData.document_type_id);
+
+      const types = await getDocumentTypesForVehicle(vehicleId);
+      setDocumentTypes(types);
 
       // Set custom breadcrumb label with vehicle name
       const nameField = vehicleData.field_values?.find((fv: any) =>

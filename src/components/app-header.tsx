@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Settings, ChevronDown } from "lucide-react";
+import { Moon, Sun, Settings, ChevronDown, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -182,7 +182,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                   onClick={onLogout}
                   className="text-destructive focus:text-destructive"
                 >
-                  <span className="mr-2">🚪</span>
+                  <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
               )}

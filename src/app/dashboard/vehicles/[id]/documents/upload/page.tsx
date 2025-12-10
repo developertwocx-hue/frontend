@@ -97,12 +97,13 @@ export default function UploadDocumentPage() {
     try {
       setLoading(true);
       setLoadingTypes(true);
-      const [vehicleResponse, types] = await Promise.all([
-        vehicleService.getOne(vehicleId),
-        getDocumentTypesForVehicle(vehicleId),
-      ]);
+
+      // Fetch data sequentially
+      const vehicleResponse = await vehicleService.getOne(vehicleId);
       const vehicleData = vehicleResponse.data;
       setVehicle(vehicleData);
+
+      const types = await getDocumentTypesForVehicle(vehicleId);
       setDocumentTypes(types);
 
       // Set custom breadcrumb label with vehicle name

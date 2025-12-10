@@ -21,6 +21,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const tenantData = localStorage.getItem("tenant");
     if (userData) setUser(JSON.parse(userData));
     if (tenantData) setTenant(JSON.parse(tenantData));
+
+    // Listen for tenant updates
+    const handleTenantUpdate = (event: any) => {
+      setTenant(event.detail);
+    };
+
+    window.addEventListener("tenantUpdated", handleTenantUpdate);
+
+    return () => {
+      window.removeEventListener("tenantUpdated", handleTenantUpdate);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -35,9 +46,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <SidebarProvider>
       <AppSidebar user={user} tenant={tenant} />
-      <SidebarInset>
+      <SidebarInset className="overflow-x-hidden">
         <AppHeader user={user} onLogout={handleLogout} />
-        <main className="flex flex-1 flex-col p-6">
+        <main className="flex flex-1 flex-col p-6 overflow-x-hidden">
           {children}
         </main>
       </SidebarInset>

@@ -19,7 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { vehicleTypeService, VehicleType } from "@/lib/vehicles";
 import { useForm } from "react-hook-form";
-import { Truck, ChevronRight, Settings } from "lucide-react";
+import { Truck, ChevronRight, Settings, Plus } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PageLoading } from "@/components/ui/loading-overlay";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -136,9 +136,7 @@ export default function VehicleTypesPage() {
             </p>
           </div>
           <Button onClick={() => handleOpenDialog()}>
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="h-4 w-4 mr-2" />
             Add Vehicle Type
           </Button>
         </div>
@@ -182,9 +180,7 @@ export default function VehicleTypesPage() {
             <Card className="col-span-full border-2 border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
+                  <Truck className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold mb-1">No vehicle types yet</h3>
                 <p className="text-muted-foreground text-center mb-4">

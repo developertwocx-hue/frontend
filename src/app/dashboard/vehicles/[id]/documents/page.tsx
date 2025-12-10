@@ -48,12 +48,13 @@ export default function VehicleDocumentsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [vehicleResponse, docsData] = await Promise.all([
-        vehicleService.getOne(vehicleId),
-        getVehicleDocuments(vehicleId),
-      ]);
+
+      // Fetch data sequentially
+      const vehicleResponse = await vehicleService.getOne(vehicleId);
       const vehicleData = vehicleResponse.data;
       setVehicle(vehicleData);
+
+      const docsData = await getVehicleDocuments(vehicleId);
       setDocuments(docsData);
 
       // Set custom breadcrumb label with vehicle name
