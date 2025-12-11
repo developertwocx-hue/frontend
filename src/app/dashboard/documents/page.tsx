@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -1155,20 +1156,21 @@ function DocumentsPageContent() {
             {/* Issue Date */}
             <div className="space-y-2">
               <Label>Issue Date</Label>
-              <Input
-                type="date"
-                value={editForm.issue_date || ""}
-                onChange={(e) => setEditForm({ ...editForm, issue_date: e.target.value })}
+              <DatePicker
+                value={editForm.issue_date}
+                onChange={(date) => setEditForm({ ...editForm, issue_date: date ? date.toISOString().split('T')[0] : undefined })}
+                placeholder="Select issue date"
               />
             </div>
 
             {/* Expiry Date */}
             <div className="space-y-2">
               <Label>Expiry Date</Label>
-              <Input
-                type="date"
-                value={editForm.expiry_date || ""}
-                onChange={(e) => setEditForm({ ...editForm, expiry_date: e.target.value })}
+              <DatePicker
+                value={editForm.expiry_date}
+                onChange={(date) => setEditForm({ ...editForm, expiry_date: date ? date.toISOString().split('T')[0] : undefined })}
+                placeholder="Select expiry date"
+                fromDate={editForm.issue_date ? new Date(editForm.issue_date) : undefined}
               />
             </div>
 

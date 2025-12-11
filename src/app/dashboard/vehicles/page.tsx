@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -647,19 +648,18 @@ export default function VehiclesPage() {
                 <div className="space-y-2">
                   <Label>Created Date Range</Label>
                   <div className="flex gap-2">
-                    <Input
-                      type="date"
+                    <DatePicker
                       value={tempDateFromFilter}
-                      onChange={(e) => setTempDateFromFilter(e.target.value)}
-                      className="h-9 text-xs"
+                      onChange={(date) => setTempDateFromFilter(date ? date.toISOString().split('T')[0] : '')}
                       placeholder="From"
-                    />
-                    <Input
-                      type="date"
-                      value={tempDateToFilter}
-                      onChange={(e) => setTempDateToFilter(e.target.value)}
                       className="h-9 text-xs"
+                    />
+                    <DatePicker
+                      value={tempDateToFilter}
+                      onChange={(date) => setTempDateToFilter(date ? date.toISOString().split('T')[0] : '')}
                       placeholder="To"
+                      className="h-9 text-xs"
+                      fromDate={tempDateFromFilter ? new Date(tempDateFromFilter) : undefined}
                     />
                   </div>
                 </div>

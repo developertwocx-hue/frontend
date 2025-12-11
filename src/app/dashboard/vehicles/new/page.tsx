@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -274,12 +275,10 @@ function NewVehicleForm() {
 
                       {/* Date Field */}
                       {field.field_type === "date" && (
-                        <Input
-                          id={`field_${field.key}`}
-                          type="date"
-                          {...register(`field_${field.key}`, {
-                            required: field.is_required,
-                          })}
+                        <DatePicker
+                          value={watch(`field_${field.key}`)}
+                          onChange={(date) => setValue(`field_${field.key}`, date ? date.toISOString().split('T')[0] : '')}
+                          placeholder="Select date"
                         />
                       )}
 

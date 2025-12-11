@@ -36,6 +36,7 @@ import { vehicleService, type Vehicle } from "@/lib/vehicles";
 import { Upload, FileText, ChevronLeft, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import {
@@ -483,28 +484,29 @@ export default function UploadDocumentPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label>Issue Date</Label>
-                                <Input
-                                  type="date"
-                                  value={doc.issue_date || ""}
-                                  onChange={(e) => {
+                                <DatePicker
+                                  value={doc.issue_date}
+                                  onChange={(date) => {
                                     const newDocs = [...batchDocuments];
-                                    newDocs[index].issue_date = e.target.value;
+                                    newDocs[index].issue_date = date ? date.toISOString().split('T')[0] : undefined;
                                     setBatchDocuments(newDocs);
                                   }}
+                                  placeholder="Select issue date"
                                   disabled={uploading}
                                 />
                               </div>
                               <div className="space-y-2">
                                 <Label>Expiry Date</Label>
-                                <Input
-                                  type="date"
-                                  value={doc.expiry_date || ""}
-                                  onChange={(e) => {
+                                <DatePicker
+                                  value={doc.expiry_date}
+                                  onChange={(date) => {
                                     const newDocs = [...batchDocuments];
-                                    newDocs[index].expiry_date = e.target.value;
+                                    newDocs[index].expiry_date = date ? date.toISOString().split('T')[0] : undefined;
                                     setBatchDocuments(newDocs);
                                   }}
+                                  placeholder="Select expiry date"
                                   disabled={uploading}
+                                  fromDate={doc.issue_date ? new Date(doc.issue_date) : undefined}
                                 />
                               </div>
                             </div>

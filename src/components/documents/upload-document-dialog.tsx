@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -256,7 +257,11 @@ export function UploadDocumentDialog({
                     <FormItem>
                       <FormLabel>Issue Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                          placeholder="Select issue date"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -270,7 +275,12 @@ export function UploadDocumentDialog({
                     <FormItem>
                       <FormLabel>Expiry Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                          placeholder="Select expiry date"
+                          fromDate={form.watch('issue_date') && form.watch('issue_date') !== '' ? new Date(form.watch('issue_date') as string) : undefined}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
