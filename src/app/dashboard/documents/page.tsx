@@ -1136,9 +1136,9 @@ function DocumentsPageContent() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    if (file.size > 10 * 1024 * 1024) {
+                    if (file.size > 100 * 1024 * 1024) {
                       toast.error("File too large", {
-                        description: "Maximum file size is 10MB",
+                        description: "Maximum file size is 100MB",
                       });
                       return;
                     }

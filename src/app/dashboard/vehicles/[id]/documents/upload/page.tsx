@@ -134,10 +134,10 @@ export default function UploadDocumentPage() {
       const filesArray = Array.from(e.target.files);
 
       // Validate file sizes
-      const invalidFiles = filesArray.filter(file => file.size > 10 * 1024 * 1024);
+      const invalidFiles = filesArray.filter(file => file.size > 100 * 1024 * 1024);
       if (invalidFiles.length > 0) {
         toast.error("Some files are too large", {
-          description: `Maximum file size is 10MB. ${invalidFiles.length} file(s) exceeded this limit.`,
+          description: `Maximum file size is 100MB. ${invalidFiles.length} file(s) exceeded this limit.`,
         });
         e.target.value = ''; // Reset input
         return;
@@ -341,7 +341,7 @@ export default function UploadDocumentPage() {
                             Click to upload or drag and drop
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            PDF, Image (max 10MB per file) - Multiple files supported
+                            PDF, Image (max 100MB per file) - Multiple files supported
                           </p>
                         </div>
                       )}

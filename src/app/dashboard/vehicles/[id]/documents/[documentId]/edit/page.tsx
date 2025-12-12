@@ -118,10 +118,10 @@ export default function EditDocumentPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
+      // Validate file size (max 100MB)
+      if (file.size > 100 * 1024 * 1024) {
         toast.error("File too large", {
-          description: "Maximum file size is 10MB",
+          description: "Maximum file size is 100MB",
         });
         return;
       }
@@ -298,7 +298,7 @@ export default function EditDocumentPage() {
                             Click to upload a new file (optional)
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            PDF, Image (max 10MB)
+                            PDF, Image (max 100MB)
                           </p>
                         </div>
                       )}

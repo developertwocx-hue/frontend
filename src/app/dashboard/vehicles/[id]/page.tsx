@@ -813,7 +813,7 @@ export default function VehicleDetailPage() {
                         Click to upload or drag and drop
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        PDF, Image (max 10MB)
+                        PDF, Image (max 100MB)
                       </p>
                     </div>
                   )}
@@ -825,9 +825,9 @@ export default function VehicleDetailPage() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        if (file.size > 10 * 1024 * 1024) {
+                        if (file.size > 100 * 1024 * 1024) {
                           toast.error("File too large", {
-                            description: "Maximum file size is 10MB",
+                            description: "Maximum file size is 100MB",
                           });
                           return;
                         }
@@ -1036,7 +1036,7 @@ export default function VehicleDetailPage() {
                       Click to upload or drag and drop
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      PDF, Image - Multiple files supported (max 10MB each)
+                      PDF, Image - Multiple files supported (max 100MB each)
                     </p>
                   </div>
                 )}
@@ -1306,9 +1306,9 @@ export default function VehicleDetailPage() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    if (file.size > 10 * 1024 * 1024) {
+                    if (file.size > 100 * 1024 * 1024) {
                       toast.error("File too large", {
-                        description: "Maximum file size is 10MB",
+                        description: "Maximum file size is 100MB",
                       });
                       return;
                     }
