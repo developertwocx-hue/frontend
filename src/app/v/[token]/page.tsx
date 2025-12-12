@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Eye, AlertCircle, FileCheck, ScrollText, Shield, Calendar, Wrench, File } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FieldValue {
   name: string;
@@ -37,6 +33,45 @@ interface VehicleData {
   field_values: FieldValue[];
   documents: Document[];
 }
+
+// Icon mapping for document categories
+const getDocumentCategoryIcon = (docType: string): { icon: string; colorClass: string } => {
+  const type = docType.toLowerCase();
+
+  if (type.includes('load') || type.includes('chart')) {
+    return { icon: 'picture_as_pdf', colorClass: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+  } else if (type.includes('manual') || type.includes('operator')) {
+    return { icon: 'menu_book', colorClass: 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' };
+  } else if (type.includes('safety') || type.includes('certificate')) {
+    return { icon: 'verified_user', colorClass: 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' };
+  } else if (type.includes('service') || type.includes('maintenance') || type.includes('inspection')) {
+    return { icon: 'history', colorClass: 'bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400' };
+  } else if (type.includes('insurance')) {
+    return { icon: 'shield', colorClass: 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400' };
+  } else if (type.includes('registration') || type.includes('permit')) {
+    return { icon: 'badge', colorClass: 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' };
+  } else if (type.includes('gear') || type.includes('lifting')) {
+    return { icon: 'construction', colorClass: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' };
+  }
+
+  return { icon: 'description', colorClass: 'bg-gray-50 dark:bg-gray-500/10 text-gray-600 dark:text-gray-400' };
+};
+
+// Icon mapping for specification cards
+const getSpecIcon = (fieldName: string): string => {
+  const name = fieldName.toLowerCase();
+
+  if (name.includes('capacity') || name.includes('weight')) return 'scale';
+  if (name.includes('boom') || name.includes('length') || name.includes('height')) return 'straighten';
+  if (name.includes('service') || name.includes('date')) return 'calendar_month';
+  if (name.includes('hours') || name.includes('time')) return 'schedule';
+  if (name.includes('engine')) return 'engineering';
+  if (name.includes('speed')) return 'speed';
+  if (name.includes('fuel')) return 'local_gas_station';
+  if (name.includes('model') || name.includes('make')) return 'precision_manufacturing';
+
+  return 'info';
+};
 
 export default function PublicVehiclePage() {
   const params = useParams();
@@ -72,67 +107,29 @@ export default function PublicVehiclePage() {
   }, [token]);
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "active":
-        return "bg-green-500/20 text-green-700 border-green-500/50";
+      case "operational":
+        return "bg-green-500/10 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/20";
       case "maintenance":
-        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50";
+        return "bg-yellow-500/10 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/20";
       case "inactive":
-        return "bg-gray-500/20 text-gray-700 border-gray-500/50";
+        return "bg-gray-500/10 dark:bg-gray-500/20 text-gray-700 dark:text-gray-400 border-gray-500/20";
       case "sold":
-        return "bg-blue-500/20 text-blue-700 border-blue-500/50";
+        return "bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/20";
       default:
-        return "";
+        return "bg-slate-500/10 dark:bg-slate-500/20 text-slate-700 dark:text-slate-400 border-slate-500/20";
     }
-  };
-
-  const getDocumentIcon = (docType: string) => {
-    const type = docType.toLowerCase();
-    if (type.includes('registration') || type.includes('title')) {
-      return <FileCheck className="h-5 w-5 text-blue-600" />;
-    } else if (type.includes('insurance')) {
-      return <Shield className="h-5 w-5 text-green-600" />;
-    } else if (type.includes('inspection') || type.includes('maintenance')) {
-      return <Wrench className="h-5 w-5 text-orange-600" />;
-    } else if (type.includes('permit') || type.includes('license')) {
-      return <ScrollText className="h-5 w-5 text-purple-600" />;
-    } else if (type.includes('receipt') || type.includes('invoice')) {
-      return <Calendar className="h-5 w-5 text-pink-600" />;
-    }
-    return <File className="h-5 w-5 text-gray-600" />;
-  };
-
-  const getDocumentTypeIcon = (docType: string) => {
-    const type = docType.toLowerCase();
-    if (type.includes('registration') || type.includes('title')) {
-      return <FileCheck className="h-6 w-6 text-blue-600" />;
-    } else if (type.includes('insurance')) {
-      return <Shield className="h-6 w-6 text-green-600" />;
-    } else if (type.includes('inspection') || type.includes('maintenance')) {
-      return <Wrench className="h-6 w-6 text-orange-600" />;
-    } else if (type.includes('permit') || type.includes('license')) {
-      return <ScrollText className="h-6 w-6 text-purple-600" />;
-    } else if (type.includes('receipt') || type.includes('invoice')) {
-      return <Calendar className="h-6 w-6 text-pink-600" />;
-    }
-    return <FileText className="h-6 w-6 text-gray-600" />;
-  };
-
-  const handleDownload = (doc: Document) => {
-    // Remove /api from the URL to get the base URL, fallback to window origin for production
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-    const fileUrl = `${baseUrl}/storage/${doc.file_path}`;
-    window.open(fileUrl, "_blank");
-  };
-
-  const getFieldValue = (key: string): string => {
-    const field = vehicle?.field_values.find(f => f.name.toLowerCase().includes(key.toLowerCase()));
-    return field ? `${field.value}${field.unit ? ' ' + field.unit : ''}` : 'N/A';
   };
 
   const getVehicleName = (): string => {
     const nameField = vehicle?.field_values.find(f => f.name.toLowerCase() === 'name');
     return nameField?.value || vehicle?.vehicle_type || 'Vehicle';
+  };
+
+  const getVehicleDescription = (): string => {
+    // You can customize this based on your needs
+    return `High-capacity ${vehicle?.vehicle_type.toLowerCase() || 'vehicle'} available for operations. All documents and certifications up to date.`;
   };
 
   // Group documents by document type
@@ -145,12 +142,15 @@ export default function PublicVehiclePage() {
     return acc;
   }, {} as Record<string, Document[]>) || {};
 
+  // Get top 4 specifications for the grid
+  const topSpecs = vehicle?.field_values.slice(0, 4) || [];
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex h-screen w-full items-center justify-center bg-background-light dark:bg-background-dark">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading vehicle...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
+          <p className="text-slate-500 dark:text-white/60">Loading vehicle...</p>
         </div>
       </div>
     );
@@ -158,208 +158,161 @@ export default function PublicVehiclePage() {
 
   if (error || !vehicle) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <Card className="p-8 max-w-md w-full text-center">
-          <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Vehicle Not Found</h2>
-          <p className="text-muted-foreground mb-6">
+      <div className="flex min-h-screen items-center justify-center bg-background-light dark:bg-background-dark px-4">
+        <div className="w-full max-w-md rounded-xl bg-white dark:bg-surface-dark p-8 text-center shadow-2xl border border-slate-200 dark:border-white/10">
+          <span className="material-symbols-outlined mx-auto mb-4 text-[64px] text-red-500">error</span>
+          <h2 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">Vehicle Not Found</h2>
+          <p className="text-slate-500 dark:text-white/60">
             {error || 'The vehicle you are looking for does not exist or the link is invalid.'}
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-blue-50/30 dark:to-blue-950/20">
-      {/* Branded Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-2 mx-auto">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center shadow-md">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
-              <div className="text-center">
-                <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                  Cranelift SaaS
-                </h1>
-                <p className="text-xs text-muted-foreground">Vehicle Management System</p>
-              </div>
-            </div>
-            <div className="w-10 shrink-0"></div>
-          </div>
+    <div className="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-50 flex items-center bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md p-4 border-b border-black/5 dark:border-white/5 justify-between">
+        <button
+          onClick={() => router.back()}
+          className="text-slate-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/20 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+        </button>
+
+        <h2 className="text-slate-900 dark:text-white text-base font-bold uppercase tracking-wider flex-1 text-center opacity-90">
+          {vehicle.vehicle_type} #{vehicle.id}
+        </h2>
+
+        <div className="flex size-10 items-center justify-end">
+          <button className="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/20 transition-colors">
+            <span className="material-symbols-outlined text-[24px]">more_horiz</span>
+          </button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Vehicle Header */}
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl md:text-3xl font-bold">{getVehicleName()}</h2>
-          <div className="flex items-center justify-center gap-3">
-            <Badge variant="outline" className="text-sm">
-              {vehicle.vehicle_type}
-            </Badge>
-            <Badge className={`${getStatusColor(vehicle.status)} capitalize border font-medium`}>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col pb-safe">
+        {/* Vehicle Info Header */}
+        <div className="px-5 pt-6 pb-2">
+          <div className="flex items-center gap-3 mb-3">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(vehicle.status)}`}>
+              <span className="material-symbols-outlined text-[16px] fill-current">
+                {vehicle.status.toLowerCase() === 'active' || vehicle.status.toLowerCase() === 'operational' ? 'check_circle' : 'info'}
+              </span>
               {vehicle.status}
-            </Badge>
+            </span>
+            <span className="text-slate-500 dark:text-white/50 text-xs font-bold uppercase tracking-wider">
+              {vehicle.vehicle_type}
+            </span>
           </div>
+
+          <h1 className="text-slate-900 dark:text-white text-4xl font-extrabold tracking-tight leading-none mb-2">
+            {getVehicleName()}
+          </h1>
+
+          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-[90%]">
+            {getVehicleDescription()}
+          </p>
         </div>
 
-        {/* Tabs for Vehicle Information and Documents */}
-        <Tabs defaultValue="information" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="information" className="text-base">
-              <FileText className="h-4 w-4 mr-2" />
-              Vehicle Information
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="text-base">
-              <FileCheck className="h-4 w-4 mr-2" />
-              Documents
-            </TabsTrigger>
-          </TabsList>
+        {/* Vehicle Specifications */}
+        {topSpecs.length > 0 && (
+          <>
+            <div className="px-5 pt-6 pb-3 flex items-end justify-between">
+              <h2 className="text-slate-900 dark:text-white tracking-tight text-lg font-bold">
+                Vehicle Specifications
+              </h2>
+              {vehicle.field_values.length > 4 && (
+                <button className="text-primary hover:text-primary-dark text-xs font-bold uppercase tracking-wide py-1">
+                  View All
+                </button>
+              )}
+            </div>
 
-          {/* Vehicle Information Tab */}
-          <TabsContent value="information">
-            <Card className="border-2 shadow-lg">
-              <div className="p-6">
-                {vehicle.field_values.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehicle.field_values.map((field, index) => (
-                      <div key={index} className="bg-muted/50 p-3 rounded-lg">
-                        <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">
-                          {field.name}
-                        </p>
-                        <p className="font-semibold text-lg">
-                          {field.value}{field.unit && ` ${field.unit}`}
-                        </p>
-                      </div>
-                    ))}
+            <div className="px-5 grid grid-cols-2 gap-3">
+              {topSpecs.map((field, index) => (
+                <div
+                  key={index}
+                  className="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col justify-between h-28 relative overflow-hidden"
+                >
+                  <div className="flex items-start justify-between relative z-10">
+                    <p className="text-slate-500 dark:text-white/60 text-xs font-semibold uppercase tracking-wide">
+                      {field.name}
+                    </p>
+                    <span className="material-symbols-outlined text-primary">
+                      {getSpecIcon(field.name)}
+                    </span>
                   </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-4">No vehicle information available</p>
-                )}
-              </div>
-            </Card>
-          </TabsContent>
+                  <p className="text-slate-900 dark:text-white text-2xl font-bold leading-none relative z-10">
+                    {field.value}{field.unit || ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
-          {/* Documents Tab */}
-          <TabsContent value="documents">
-            {Object.keys(groupedDocuments).length > 0 ? (
-              <div className="space-y-6">
-                {Object.entries(groupedDocuments).map(([docType, docs]) => (
-                  <Card key={docType} className="border-2 shadow-lg overflow-hidden">
-                    {/* Document Type Header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 text-white">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center justify-center w-14 h-14 bg-white/20 rounded-xl shadow-lg">
-                          {getDocumentTypeIcon(docType)}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-bold text-xl">{docType}</h3>
-                          <p className="text-sm text-white/90 mt-1">
-                            {docs.length} {docs.length === 1 ? 'document available' : 'documents available'}
-                          </p>
-                        </div>
-                        <Badge variant="secondary" className="px-3 py-1 text-base font-bold">
-                          {docs.length}
-                        </Badge>
-                      </div>
-                    </div>
+        {/* Divider */}
+        <div className="h-px bg-slate-200 dark:bg-white/10 mx-5 mt-6 mb-6"></div>
 
-                    {/* Documents Grid */}
-                    <div className="p-6 bg-gradient-to-br from-background to-muted/20">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {docs.map((doc) => (
-                          <div
-                            key={doc.id}
-                            className="group relative p-5 bg-background hover:bg-accent rounded-xl cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] border-2 border-muted hover:border-blue-200"
-                            onClick={() => handleDownload(doc)}
-                          >
-                            {/* Document Icon */}
-                            <div className="absolute top-4 right-4">
-                              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                                {getDocumentIcon(docType)}
-                              </div>
-                            </div>
-
-                            {/* Document Info */}
-                            <div className="pr-16">
-                              <h4 className="font-semibold text-base mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
-                                {doc.document_name}
-                              </h4>
-
-                              {doc.document_number && (
-                                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1">
-                                  <span className="font-medium">Doc #:</span>
-                                  <span className="font-mono">{doc.document_number}</span>
-                                </p>
-                              )}
-
-                              {doc.expiry_date && (
-                                <div className="flex items-center gap-2 mt-3">
-                                  <Badge
-                                    variant={doc.is_expired ? "destructive" : "default"}
-                                    className={`${!doc.is_expired && 'bg-green-500/20 text-green-700 hover:bg-green-500/30 border-green-300'}`}
-                                  >
-                                    {doc.is_expired ? '⚠ Expired' : '✓ Valid'}
-                                  </Badge>
-                                  <span className="text-sm text-muted-foreground">
-                                    {doc.is_expired ? 'Expired on: ' : 'Valid until: '}
-                                    <span className="font-medium">
-                                      {new Date(doc.expiry_date).toLocaleDateString()}
-                                    </span>
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Preview Button */}
-                              <div className="mt-4 pt-3 border-t border-muted">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="w-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownload(doc);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Preview Document
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card className="p-12 text-center border-2 border-dashed">
-                <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold mb-2">No Documents Available</h3>
-                <p className="text-sm text-muted-foreground">
-                  No documents have been uploaded for this vehicle yet
-                </p>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {/* Footer */}
-        <div className="text-center py-8 border-t">
-          <p className="text-sm text-muted-foreground">
-            Powered by <span className="font-semibold text-blue-600">Cranelift SaaS</span>
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Professional Vehicle Management System
+        {/* Document Categories */}
+        <div className="px-5 pb-4">
+          <h2 className="text-slate-900 dark:text-white tracking-tight text-xl font-bold leading-tight">
+            Document Categories
+          </h2>
+          <p className="text-slate-500 dark:text-white/40 text-sm mt-1">
+            Select a category to view files
           </p>
         </div>
+
+        <div className="flex flex-col gap-4 px-5 pb-10">
+          {Object.entries(groupedDocuments).length > 0 ? (
+            Object.entries(groupedDocuments).map(([docType, docs]) => {
+              const { icon, colorClass } = getDocumentCategoryIcon(docType);
+
+              return (
+                <button
+                  key={docType}
+                  onClick={() => router.push(`/v/${token}/documents/${encodeURIComponent(docType)}`)}
+                  className="group w-full flex items-center p-5 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 active:border-primary active:ring-1 active:ring-primary/20 transition-all hover:translate-x-1 min-h-[100px]"
+                >
+                  <div className={`size-16 rounded-xl flex shrink-0 items-center justify-center ${colorClass}`}>
+                    <span className="material-symbols-outlined text-[30px]">{icon}</span>
+                  </div>
+
+                  <div className="ml-4 flex-1 text-left">
+                    <h3 className="text-slate-900 dark:text-white font-bold text-lg">
+                      {docType}
+                    </h3>
+                    <p className="text-slate-500 dark:text-white/40 text-sm font-medium uppercase tracking-wide mt-1">
+                      {docs.length} {docs.length === 1 ? 'File' : 'Files'} Available
+                    </p>
+                  </div>
+
+                  <div className="size-8 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-white/30 group-hover:bg-primary group-hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className="text-center py-12 px-4">
+              <span className="material-symbols-outlined text-[64px] text-slate-300 dark:text-white/20 mb-4 block">
+                folder_open
+              </span>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                No Documents Available
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-white/40">
+                No documents have been uploaded for this vehicle yet
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="h-8"></div>
       </div>
     </div>
   );
