@@ -126,7 +126,7 @@ export default function DocumentCategoryPage() {
           <span className="material-symbols-outlined text-[24px]">arrow_back</span>
         </button>
 
-        <h2 className="text-slate-900 dark:text-white text-base font-bold uppercase tracking-wider flex-1 text-center opacity-90">
+        <h2 className="text-slate-900 dark:text-white text-sm font-bold uppercase tracking-wider flex-1 text-center opacity-90 truncate px-2">
           {category}
         </h2>
 
@@ -141,17 +141,17 @@ export default function DocumentCategoryPage() {
       <div className="flex-1 flex flex-col pb-safe">
         {/* Header Section */}
         <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center gap-3 mb-3">
-            <span className="text-slate-500 dark:text-white/50 text-xs font-bold uppercase tracking-wider">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-slate-500 dark:text-white/50 text-[10px] font-bold uppercase tracking-wider">
               {vehicle.vehicle_type} #{vehicle.id}
             </span>
           </div>
 
-          <h1 className="text-slate-900 dark:text-white text-3xl font-extrabold tracking-tight leading-none mb-2">
+          <h1 className="text-slate-900 dark:text-white text-2xl font-extrabold tracking-tight leading-none mb-2 truncate">
             {category}
           </h1>
 
-          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
             {documents.length} {documents.length === 1 ? 'document' : 'documents'} available for viewing
           </p>
         </div>
@@ -163,22 +163,22 @@ export default function DocumentCategoryPage() {
               <button
                 key={doc.id}
                 onClick={() => handleDownload(doc)}
-                className="group w-full flex flex-col p-5 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 hover:border-primary hover:ring-1 hover:ring-primary/20 transition-all active:scale-[0.98]"
+                className="group w-full flex flex-col p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 hover:border-primary hover:ring-1 hover:ring-primary/20 transition-all active:scale-[0.98]"
               >
                 {/* Document Header */}
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="size-14 rounded-xl bg-primary/10 flex shrink-0 items-center justify-center text-primary">
-                    <span className="material-symbols-outlined text-[28px]">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="size-12 rounded-xl bg-primary/10 flex shrink-0 items-center justify-center text-primary">
+                    <span className="material-symbols-outlined text-[22px]">
                       {getFileIcon(doc)}
                     </span>
                   </div>
 
                   <div className="flex-1 text-left">
-                    <h3 className="text-slate-900 dark:text-white font-bold text-base mb-1 group-hover:text-primary transition-colors">
+                    <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1 group-hover:text-primary transition-colors line-clamp-2">
                       {doc.document_name}
                     </h3>
                     {doc.document_number && (
-                      <p className="text-slate-500 dark:text-white/50 text-xs font-medium font-mono">
+                      <p className="text-slate-500 dark:text-white/50 text-[10px] font-medium font-mono">
                         #{doc.document_number}
                       </p>
                     )}
@@ -186,43 +186,43 @@ export default function DocumentCategoryPage() {
                 </div>
 
                 {/* Document Metadata */}
-                <div className="flex flex-wrap gap-2 mb-4">
+                <div className="flex flex-wrap gap-2 mb-3">
                   {doc.file_size && (
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg">
-                      <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-white/50">
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-lg">
+                      <span className="material-symbols-outlined text-[12px] text-slate-500 dark:text-white/50">
                         cloud
                       </span>
-                      <span className="text-xs font-medium text-slate-600 dark:text-white/60">
+                      <span className="text-[10px] font-medium text-slate-600 dark:text-white/60">
                         {formatFileSize(doc.file_size)}
                       </span>
                     </div>
                   )}
 
                   {doc.issue_date && (
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg">
-                      <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-white/50">
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-lg">
+                      <span className="material-symbols-outlined text-[12px] text-slate-500 dark:text-white/50">
                         event
                       </span>
-                      <span className="text-xs font-medium text-slate-600 dark:text-white/60">
+                      <span className="text-[10px] font-medium text-slate-600 dark:text-white/60">
                         Issued: {new Date(doc.issue_date).toLocaleDateString()}
                       </span>
                     </div>
                   )}
 
                   {doc.expiry_date && (
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg ${
                       doc.is_expired
                         ? 'bg-red-50 dark:bg-red-500/10'
                         : 'bg-green-50 dark:bg-green-500/10'
                     }`}>
-                      <span className={`material-symbols-outlined text-[14px] ${
+                      <span className={`material-symbols-outlined text-[12px] ${
                         doc.is_expired
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-green-600 dark:text-green-400'
                       }`}>
                         {doc.is_expired ? 'warning' : 'check_circle'}
                       </span>
-                      <span className={`text-xs font-medium ${
+                      <span className={`text-[10px] font-medium ${
                         doc.is_expired
                           ? 'text-red-700 dark:text-red-400'
                           : 'text-green-700 dark:text-green-400'
@@ -234,13 +234,13 @@ export default function DocumentCategoryPage() {
                 </div>
 
                 {/* View Button */}
-                <div className="pt-4 border-t border-slate-200 dark:border-white/10">
+                <div className="pt-3 border-t border-slate-200 dark:border-white/10">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600 dark:text-white/60">
+                    <span className="text-xs font-medium text-slate-600 dark:text-white/60">
                       Tap to view document
                     </span>
-                    <div className="size-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-white/30 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                    <div className="size-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-white/30 group-hover:bg-primary group-hover:text-white transition-colors">
+                      <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                     </div>
                   </div>
                 </div>

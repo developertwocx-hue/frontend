@@ -11,11 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { tenantService, Tenant } from "@/lib/tenant";
-import { AlertTriangle, Info, Lock } from "lucide-react";
+import { AlertTriangle, Info, Lock, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -244,6 +246,40 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Vehicle QR Codes</CardTitle>
+            <CardDescription>
+              View and print QR codes for all your vehicles
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg border">
+                <div className="flex items-start gap-3">
+                  <QrCode className="w-5 h-5 text-primary mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      QR Code Grid View
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Access a printable grid of all your vehicle QR codes for easy scanning and distribution.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <Button
+                onClick={() => router.push(`/v/grid/${tenant?.id}`)}
+                className="w-full"
+                disabled={!tenant}
+              >
+                <QrCode className="mr-2 h-4 w-4" />
+                View QR Code Grid
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

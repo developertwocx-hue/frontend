@@ -181,7 +181,7 @@ export default function PublicVehiclePage() {
           <span className="material-symbols-outlined text-[24px]">arrow_back</span>
         </button>
 
-        <h2 className="text-slate-900 dark:text-white text-base font-bold uppercase tracking-wider flex-1 text-center opacity-90">
+        <h2 className="text-slate-900 dark:text-white text-sm font-bold uppercase tracking-wider flex-1 text-center opacity-90">
           {vehicle.vehicle_type} #{vehicle.id}
         </h2>
 
@@ -196,23 +196,20 @@ export default function PublicVehiclePage() {
       <div className="flex-1 flex flex-col pb-safe">
         {/* Vehicle Info Header */}
         <div className="px-5 pt-6 pb-2">
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center mb-3">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(vehicle.status)}`}>
-              <span className="material-symbols-outlined text-[16px] fill-current">
+              <span className="material-symbols-outlined text-[14px] fill-current">
                 {vehicle.status.toLowerCase() === 'active' || vehicle.status.toLowerCase() === 'operational' ? 'check_circle' : 'info'}
               </span>
               {vehicle.status}
             </span>
-            <span className="text-slate-500 dark:text-white/50 text-xs font-bold uppercase tracking-wider">
-              {vehicle.vehicle_type}
-            </span>
           </div>
 
-          <h1 className="text-slate-900 dark:text-white text-4xl font-extrabold tracking-tight leading-none mb-2">
+          <h1 className="text-slate-900 dark:text-white text-3xl font-extrabold tracking-tight leading-none mb-2 truncate">
             {getVehicleName()}
           </h1>
 
-          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-[90%]">
+          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
             {getVehicleDescription()}
           </p>
         </div>
@@ -221,11 +218,11 @@ export default function PublicVehiclePage() {
         {topSpecs.length > 0 && (
           <>
             <div className="px-5 pt-6 pb-3 flex items-end justify-between">
-              <h2 className="text-slate-900 dark:text-white tracking-tight text-lg font-bold">
+              <h2 className="text-slate-900 dark:text-white tracking-tight text-base font-bold">
                 Vehicle Specifications
               </h2>
               {vehicle.field_values.length > 4 && (
-                <button className="text-primary hover:text-primary-dark text-xs font-bold uppercase tracking-wide py-1">
+                <button className="text-primary hover:text-primary-dark text-[10px] font-bold uppercase tracking-wide py-1">
                   View All
                 </button>
               )}
@@ -235,17 +232,17 @@ export default function PublicVehiclePage() {
               {topSpecs.map((field, index) => (
                 <div
                   key={index}
-                  className="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col justify-between h-28 relative overflow-hidden"
+                  className="bg-white dark:bg-surface-dark p-3 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col justify-between h-24 relative overflow-hidden"
                 >
                   <div className="flex items-start justify-between relative z-10">
-                    <p className="text-slate-500 dark:text-white/60 text-xs font-semibold uppercase tracking-wide">
+                    <p className="text-slate-500 dark:text-white/60 text-[10px] font-semibold uppercase tracking-wide">
                       {field.name}
                     </p>
-                    <span className="material-symbols-outlined text-primary">
+                    <span className="material-symbols-outlined text-primary text-[18px]">
                       {getSpecIcon(field.name)}
                     </span>
                   </div>
-                  <p className="text-slate-900 dark:text-white text-2xl font-bold leading-none relative z-10">
+                  <p className="text-slate-900 dark:text-white text-xl font-bold leading-none relative z-10">
                     {field.value}{field.unit || ''}
                   </p>
                 </div>
@@ -259,10 +256,10 @@ export default function PublicVehiclePage() {
 
         {/* Document Categories */}
         <div className="px-5 pb-4">
-          <h2 className="text-slate-900 dark:text-white tracking-tight text-xl font-bold leading-tight">
+          <h2 className="text-slate-900 dark:text-white tracking-tight text-base font-bold leading-tight">
             Document Categories
           </h2>
-          <p className="text-slate-500 dark:text-white/40 text-sm mt-1">
+          <p className="text-slate-500 dark:text-white/40 text-xs mt-1">
             Select a category to view files
           </p>
         </div>
@@ -276,36 +273,36 @@ export default function PublicVehiclePage() {
                 <button
                   key={docType}
                   onClick={() => router.push(`/v/${token}/documents/${encodeURIComponent(docType)}`)}
-                  className="group w-full flex items-center p-5 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 active:border-primary active:ring-1 active:ring-primary/20 transition-all hover:translate-x-1 min-h-[100px]"
+                  className="group w-full flex items-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 active:border-primary active:ring-1 active:ring-primary/20 transition-all hover:translate-x-1 min-h-[80px]"
                 >
-                  <div className={`size-16 rounded-xl flex shrink-0 items-center justify-center ${colorClass}`}>
-                    <span className="material-symbols-outlined text-[30px]">{icon}</span>
+                  <div className={`size-12 rounded-xl flex shrink-0 items-center justify-center ${colorClass}`}>
+                    <span className="material-symbols-outlined text-[24px]">{icon}</span>
                   </div>
 
-                  <div className="ml-4 flex-1 text-left">
-                    <h3 className="text-slate-900 dark:text-white font-bold text-lg">
+                  <div className="ml-3 flex-1 text-left">
+                    <h3 className="text-slate-900 dark:text-white font-bold text-sm">
                       {docType}
                     </h3>
-                    <p className="text-slate-500 dark:text-white/40 text-sm font-medium uppercase tracking-wide mt-1">
+                    <p className="text-slate-500 dark:text-white/40 text-[10px] font-medium uppercase tracking-wide mt-1">
                       {docs.length} {docs.length === 1 ? 'File' : 'Files'} Available
                     </p>
                   </div>
 
-                  <div className="size-8 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-white/30 group-hover:bg-primary group-hover:text-white transition-colors">
-                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                  <div className="size-7 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-white/30 group-hover:bg-primary group-hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                   </div>
                 </button>
               );
             })
           ) : (
-            <div className="text-center py-12 px-4">
-              <span className="material-symbols-outlined text-[64px] text-slate-300 dark:text-white/20 mb-4 block">
+            <div className="text-center py-10 px-4">
+              <span className="material-symbols-outlined text-[48px] text-slate-300 dark:text-white/20 mb-3 block">
                 folder_open
               </span>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">
                 No Documents Available
               </h3>
-              <p className="text-sm text-slate-500 dark:text-white/40">
+              <p className="text-xs text-slate-500 dark:text-white/40">
                 No documents have been uploaded for this vehicle yet
               </p>
             </div>
