@@ -126,15 +126,11 @@ export default function DocumentCategoryPage() {
           <span className="material-symbols-outlined text-[24px]">arrow_back</span>
         </button>
 
-        <h2 className="text-slate-900 dark:text-white text-sm font-bold uppercase tracking-wider flex-1 text-center opacity-90 truncate px-2">
+        <h2 className="text-slate-900 dark:text-white text-sm font-bold uppercase tracking-wider flex-1 text-center opacity-90 line-clamp-2 px-2 leading-snug">
           {category}
         </h2>
 
-        <div className="flex size-10 items-center justify-end">
-          <button className="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/20 transition-colors">
-            <span className="material-symbols-outlined text-[24px]">more_horiz</span>
-          </button>
-        </div>
+        <div className="w-10"></div>
       </div>
 
       {/* Main Content */}

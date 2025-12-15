@@ -81,6 +81,7 @@ export default function PublicVehiclePage() {
   const [vehicle, setVehicle] = useState<VehicleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAllSpecs, setShowAllSpecs] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -142,8 +143,12 @@ export default function PublicVehiclePage() {
     return acc;
   }, {} as Record<string, Document[]>) || {};
 
-  // Get top 4 specifications for the grid
-  const topSpecs = vehicle?.field_values.slice(0, 4) || [];
+  // Get specifications (exclude NAME field)
+  const allSpecs = vehicle?.field_values
+    .filter(field => field.name.toLowerCase() !== 'name') || [];
+
+  // Show either top 4 or all specs based on state
+  const displaySpecs = showAllSpecs ? allSpecs : allSpecs.slice(0, 4);
 
   if (loading) {
     return (
@@ -185,11 +190,7 @@ export default function PublicVehiclePage() {
           {vehicle.vehicle_type} #{vehicle.id}
         </h2>
 
-        <div className="flex size-10 items-center justify-end">
-          <button className="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/20 transition-colors">
-            <span className="material-symbols-outlined text-[24px]">more_horiz</span>
-          </button>
-        </div>
+        <div className="w-10"></div>
       </div>
 
       {/* Main Content */}
@@ -205,48 +206,58 @@ export default function PublicVehiclePage() {
             </span>
           </div>
 
-          <h1 className="text-slate-900 dark:text-white text-3xl font-extrabold tracking-tight leading-none mb-2 truncate">
+          <h1 className="text-slate-900 dark:text-white text-3xl font-bold tracking-tight leading-tight mb-2 break-words">
             {getVehicleName()}
           </h1>
 
-          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
             {getVehicleDescription()}
           </p>
         </div>
 
         {/* Vehicle Specifications */}
-        {topSpecs.length > 0 && (
+        {displaySpecs.length > 0 && (
           <>
             <div className="px-5 pt-6 pb-3 flex items-end justify-between">
               <h2 className="text-slate-900 dark:text-white tracking-tight text-base font-bold">
                 Vehicle Specifications
               </h2>
-              {vehicle.field_values.length > 4 && (
-                <button className="text-primary hover:text-primary-dark text-[10px] font-bold uppercase tracking-wide py-1">
-                  View All
+              {allSpecs.length > 4 && (
+                <button
+                  onClick={() => setShowAllSpecs(!showAllSpecs)}
+                  className="text-primary hover:text-primary-dark text-[10px] font-bold uppercase tracking-wide py-1 transition-colors"
+                >
+                  {showAllSpecs ? 'Show Less' : 'View All'}
                 </button>
               )}
             </div>
 
             <div className="px-5 grid grid-cols-2 gap-3">
-              {topSpecs.map((field, index) => (
-                <div
-                  key={index}
-                  className="bg-white dark:bg-surface-dark p-3 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col justify-between h-24 relative overflow-hidden"
-                >
-                  <div className="flex items-start justify-between relative z-10">
-                    <p className="text-slate-500 dark:text-white/60 text-[10px] font-semibold uppercase tracking-wide">
-                      {field.name}
+              {displaySpecs.map((field, index) => {
+                // Truncate value if too long (max 15 characters)
+                const displayValue = field.value.length > 15
+                  ? `${field.value.substring(0, 15)}...`
+                  : field.value;
+
+                return (
+                  <div
+                    key={index}
+                    className="bg-white dark:bg-surface-dark p-3 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col justify-between h-24 relative overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between relative z-10">
+                      <p className="text-slate-500 dark:text-white/60 text-[10px] font-semibold uppercase tracking-wide truncate pr-1 flex-1">
+                        {field.name}
+                      </p>
+                      <span className="material-symbols-outlined text-primary text-[18px] flex-shrink-0">
+                        {getSpecIcon(field.name)}
+                      </span>
+                    </div>
+                    <p className="text-slate-900 dark:text-white text-xl font-bold leading-tight relative z-10 break-words" title={`${field.value}${field.unit || ''}`}>
+                      {displayValue}{field.unit || ''}
                     </p>
-                    <span className="material-symbols-outlined text-primary text-[18px]">
-                      {getSpecIcon(field.name)}
-                    </span>
                   </div>
-                  <p className="text-slate-900 dark:text-white text-xl font-bold leading-none relative z-10">
-                    {field.value}{field.unit || ''}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -259,12 +270,12 @@ export default function PublicVehiclePage() {
           <h2 className="text-slate-900 dark:text-white tracking-tight text-base font-bold leading-tight">
             Document Categories
           </h2>
-          <p className="text-slate-500 dark:text-white/40 text-xs mt-1">
+          <p className="text-slate-500 dark:text-white/60 text-xs mt-1 leading-relaxed">
             Select a category to view files
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 px-5 pb-10">
+        <div className="flex flex-col gap-3 px-5 pb-10">
           {Object.entries(groupedDocuments).length > 0 ? (
             Object.entries(groupedDocuments).map(([docType, docs]) => {
               const { icon, colorClass } = getDocumentCategoryIcon(docType);
@@ -273,22 +284,22 @@ export default function PublicVehiclePage() {
                 <button
                   key={docType}
                   onClick={() => router.push(`/v/${token}/documents/${encodeURIComponent(docType)}`)}
-                  className="group w-full flex items-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 active:border-primary active:ring-1 active:ring-primary/20 transition-all hover:translate-x-1 min-h-[80px]"
+                  className="group w-full flex items-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-white/10 active:border-primary active:ring-1 active:ring-primary/20 transition-all hover:translate-x-1 min-h-[76px]"
                 >
                   <div className={`size-12 rounded-xl flex shrink-0 items-center justify-center ${colorClass}`}>
                     <span className="material-symbols-outlined text-[24px]">{icon}</span>
                   </div>
 
-                  <div className="ml-3 flex-1 text-left">
-                    <h3 className="text-slate-900 dark:text-white font-bold text-sm">
+                  <div className="ml-3 flex-1 text-left min-w-0">
+                    <h3 className="text-slate-900 dark:text-white font-semibold text-sm leading-snug truncate">
                       {docType}
                     </h3>
-                    <p className="text-slate-500 dark:text-white/40 text-[10px] font-medium uppercase tracking-wide mt-1">
+                    <p className="text-slate-500 dark:text-white/50 text-[10px] font-medium uppercase tracking-wide mt-1.5">
                       {docs.length} {docs.length === 1 ? 'File' : 'Files'} Available
                     </p>
                   </div>
 
-                  <div className="size-7 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-white/30 group-hover:bg-primary group-hover:text-white transition-colors">
+                  <div className="size-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-white/40 group-hover:bg-primary group-hover:text-white transition-colors flex-shrink-0 ml-2">
                     <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                   </div>
                 </button>
