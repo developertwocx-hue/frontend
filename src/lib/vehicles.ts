@@ -2,6 +2,7 @@ import api from './api';
 
 export interface VehicleType {
   id: number;
+  tenant_id?: string | null;
   name: string;
   description?: string;
   is_active: boolean;

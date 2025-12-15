@@ -19,18 +19,32 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { vehicleTypeService, VehicleType } from "@/lib/vehicles";
 import { useForm } from "react-hook-form";
-import { Truck, ChevronRight, Settings, Plus } from "lucide-react";
+import { Truck, ChevronRight, Settings, Plus, Pencil, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PageLoading } from "@/components/ui/loading-overlay";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function VehicleTypesPage() {
   const router = useRouter();
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingType, setEditingType] = useState<VehicleType | null>(null);
+  const [deletingType, setDeletingType] = useState<VehicleType | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { register, handleSubmit, reset, setValue } = useForm();
 
   const fetchVehicleTypes = async () => {
@@ -86,28 +100,56 @@ export default function VehicleTypesPage() {
       setSubmitting(true);
       if (editingType) {
         await vehicleTypeService.update(editingType.id, data);
+        toast.success("Vehicle type updated successfully!");
       } else {
         await vehicleTypeService.create(data);
+        toast.success("Vehicle type created successfully!");
       }
       setDialogOpen(false);
       fetchVehicleTypes();
       reset();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save vehicle type:", error);
+      toast.error(
+        editingType ? "Failed to update vehicle type" : "Failed to create vehicle type",
+        {
+          description: error.response?.data?.message || "Please try again",
+        }
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this vehicle type?")) return;
+  const handleOpenDeleteDialog = (type: VehicleType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingType(type);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingType) return;
 
     try {
-      await vehicleTypeService.delete(id);
+      setDeleting(true);
+      await vehicleTypeService.delete(deletingType.id);
+      toast.success("Vehicle type deleted successfully!");
+      setDeleteDialogOpen(false);
+      setDeletingType(null);
       fetchVehicleTypes();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete vehicle type:", error);
+      toast.error("Failed to delete vehicle type", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const handleEdit = (type: VehicleType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleOpenDialog(type);
   };
 
   const handleCardClick = (typeId: number) => {
@@ -145,7 +187,7 @@ export default function VehicleTypesPage() {
           {vehicleTypes.map((type) => (
             <Card
               key={type.id}
-              className="hover:border-primary hover:shadow-lg transition-all duration-300 cursor-pointer group"
+              className="hover:border-primary hover:shadow-lg transition-all duration-300 cursor-pointer group relative"
               onClick={() => handleCardClick(type.id)}
             >
               <CardHeader>
@@ -154,10 +196,17 @@ export default function VehicleTypesPage() {
                     <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                       <Truck className="w-6 h-6 text-primary" />
                     </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">
-                        {type.name}
-                      </CardTitle>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors truncate">
+                          {type.name}
+                        </CardTitle>
+                        {!type.tenant_id && (
+                          <Badge variant="outline" className="text-xs">
+                            Global
+                          </Badge>
+                        )}
+                      </div>
                       {type.description && (
                         <CardDescription className="mt-1 line-clamp-2">
                           {type.description}
@@ -165,13 +214,37 @@ export default function VehicleTypesPage() {
                       )}
                     </div>
                   </div>
-                  <Badge
-                    variant={type.is_active ? "default" : "secondary"}
-                    className={type.is_active ? "bg-primary/20 text-primary border-primary/50" : ""}
-                  >
-                    {type.is_active ? "Active" : "Inactive"}
-                  </Badge>
+                  <div className="flex items-start gap-2">
+                    <Badge
+                      variant={type.is_active ? "default" : "secondary"}
+                      className={type.is_active ? "bg-primary/20 text-primary border-primary/50" : ""}
+                    >
+                      {type.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
                 </div>
+                {type.tenant_id && (
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleEdit(type, e)}
+                      className="flex-1"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleOpenDeleteDialog(type, e)}
+                      className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                )}
               </CardHeader>
             </Card>
           ))}
@@ -245,6 +318,35 @@ export default function VehicleTypesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the vehicle type "{deletingType?.name}".
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
