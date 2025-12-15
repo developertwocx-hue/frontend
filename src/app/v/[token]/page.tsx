@@ -242,17 +242,12 @@ export default function PublicVehiclePage() {
                 return (
                   <div
                     key={index}
-                    className="bg-white dark:bg-surface-dark p-3 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col justify-between h-24 relative overflow-hidden"
+                    className="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col gap-2 min-h-[88px] relative overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <div className="flex items-start justify-between relative z-10">
-                      <p className="text-slate-500 dark:text-white/60 text-[10px] font-semibold uppercase tracking-wide truncate pr-1 flex-1">
-                        {field.name}
-                      </p>
-                      <span className="material-symbols-outlined text-primary text-[18px] flex-shrink-0">
-                        {getSpecIcon(field.name)}
-                      </span>
-                    </div>
-                    <p className="text-slate-900 dark:text-white text-xl font-bold leading-tight relative z-10 break-words" title={`${field.value}${field.unit || ''}`}>
+                    <p className="text-slate-500 dark:text-white/60 text-[10px] font-semibold uppercase tracking-wider">
+                      {field.name}
+                    </p>
+                    <p className="text-slate-900 dark:text-white text-base font-bold leading-snug break-words" title={`${field.value}${field.unit || ''}`}>
                       {displayValue}{field.unit || ''}
                     </p>
                   </div>
