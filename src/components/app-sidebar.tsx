@@ -83,6 +83,11 @@ export function AppSidebar({ user, tenant }: AppSidebarProps) {
       icon: FileText,
       href: "/dashboard/documents",
     },
+    {
+      title: "Compliance",
+      icon: ListChecks,
+      href: "/dashboard/compliance",
+    },
   ];
 
   const settingsNavItems: NavItem[] = [

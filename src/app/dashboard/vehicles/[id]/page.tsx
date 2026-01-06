@@ -94,7 +94,7 @@ export default function VehicleDetailPage() {
     expiry_date?: string;
     notes?: string;
   }[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<{[key: string]: 'pending' | 'uploading' | 'success' | 'error'}>({});
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: 'pending' | 'uploading' | 'success' | 'error' }>({});
   const [pendingUploads, setPendingUploads] = useState<{
     file: File;
     document_type_id: number;
@@ -175,7 +175,7 @@ export default function VehicleDetailPage() {
       setBatchDocuments(newBatchDocs);
 
       // Initialize upload progress
-      const progress: {[key: string]: 'pending' | 'uploading' | 'success' | 'error'} = {};
+      const progress: { [key: string]: 'pending' | 'uploading' | 'success' | 'error' } = {};
       filesArray.forEach(file => {
         progress[file.name] = 'pending';
       });
@@ -706,6 +706,14 @@ export default function VehicleDetailPage() {
               <Pencil className="h-4 w-4" />
               Edit
             </Button>
+            <Button
+              onClick={() => router.push(`/dashboard/vehicles/${vehicleId}/compliance`)}
+              variant="default"
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <FileText className="h-4 w-4" />
+              Compliance
+            </Button>
           </div>
         </div>
 
@@ -1067,8 +1075,8 @@ export default function VehicleDetailPage() {
                             <Badge
                               variant={
                                 uploadProgress[doc.file.name] === 'success' ? 'default' :
-                                uploadProgress[doc.file.name] === 'error' ? 'destructive' :
-                                uploadProgress[doc.file.name] === 'uploading' ? 'secondary' : 'outline'
+                                  uploadProgress[doc.file.name] === 'error' ? 'destructive' :
+                                    uploadProgress[doc.file.name] === 'uploading' ? 'secondary' : 'outline'
                               }
                               className="ml-auto flex-shrink-0"
                             >
