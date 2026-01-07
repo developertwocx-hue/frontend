@@ -49,7 +49,7 @@ export interface ComplianceRecord {
   documents: ComplianceDocument[];
   created_at: string;
   updated_at: string;
-  audit_logs?: any[]; 
+  audit_logs?: any[];
 }
 
 export interface ComplianceDocument {
@@ -67,6 +67,7 @@ export interface ComplianceDocument {
 export interface ComplianceRequirement {
   requirement_id: number;
   compliance_type: string;
+  compliance_type_name?: string;
   category: string;
   status: 'compliant' | 'at_risk' | 'expired' | 'pending';
   current_record: ComplianceRecord | null;
@@ -80,7 +81,7 @@ export interface ComplianceSummary {
   at_risk: number;
   expired: number;
   pending: number;
-  compliance_score: number;
+  compliance_score: number | string;
   overall_status: 'compliant' | 'at_risk' | 'expired' | 'pending';
   can_operate: boolean;
 }
@@ -88,11 +89,17 @@ export interface ComplianceSummary {
 export interface ComplianceStatus {
   vehicle: {
     id: number;
+    vehicle_type_id?: number;
+    vehicle_type_name?: string;
+    state_of_operation?: string;
     compliance_status: string;
-    compliance_score: number;
+    compliance_score: number | string;
     operational_status: string;
   };
-  requirements: ComplianceRequirement[];
+  requirements: {
+    required: ComplianceRequirement[];
+    optional: ComplianceRequirement[];
+  };
   summary: ComplianceSummary;
 }
 
@@ -162,6 +169,15 @@ export const complianceService = {
 
   // 6. Update Compliance Record
   async updateComplianceRecord(vehicleId: number, recordId: number, data: any) {
+    if (data instanceof FormData) {
+      data.append('_method', 'PUT');
+      const response = await api.post(`/vehicles/${vehicleId}/compliance-records/${recordId}`, data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
     const response = await api.put(`/vehicles/${vehicleId}/compliance-records/${recordId}`, data);
     return response.data;
   },
@@ -170,6 +186,14 @@ export const complianceService = {
   async deleteComplianceRecord(vehicleId: number, recordId: number) {
     const response = await api.delete(`/vehicles/${vehicleId}/compliance-records/${recordId}`);
     return response.data;
+  },
+
+  // 7.1 Download Compliance Document
+  async downloadComplianceDocument(vehicleId: number, recordId: number) {
+    const response = await api.get(`/vehicles/${vehicleId}/compliance-records/${recordId}/download`, {
+      responseType: 'blob',
+    });
+    return response;
   },
 
   // 8. Get Vehicle Compliance Status

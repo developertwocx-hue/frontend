@@ -20,7 +20,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { complianceService, ComplianceType } from "@/lib/compliance";
+import { complianceService, ComplianceType, ComplianceRecord } from "@/lib/compliance";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -29,6 +29,7 @@ interface ComplianceFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
+    record?: ComplianceRecord | null;
 }
 
 export function ComplianceFormDialog({
@@ -36,6 +37,7 @@ export function ComplianceFormDialog({
     open,
     onOpenChange,
     onSuccess,
+    record
 }: ComplianceFormDialogProps) {
     const [loading, setLoading] = useState(false);
     const [fetchingTypes, setFetchingTypes] = useState(false);
@@ -52,23 +54,63 @@ export function ComplianceFormDialog({
     useEffect(() => {
         if (open) {
             loadComplianceTypes();
-            // Reset form on open
-            setFormData({
-                compliance_type_id: "",
-                issue_date: new Date().toISOString().split('T')[0],
-                expiry_date: "",
-            });
+            if (record) {
+                // Populate from props initially - convert ISO dates to YYYY-MM-DD
+                const issueDate = record.issue_date ? record.issue_date.split('T')[0] : '';
+                const expiryDate = record.expiry_date ? record.expiry_date.split('T')[0] : '';
+
+                setFormData({
+                    compliance_type_id: record.compliance_type_id.toString(),
+                    issue_date: issueDate,
+                    expiry_date: expiryDate,
+                });
+
+                // Fetch fresh details to ensure we have latest data
+                // (Useful if other users updated it or if list view is stale)
+                fetchRecordDetails(record.id);
+            } else {
+                // Create mode: reset form
+                setFormData({
+                    compliance_type_id: "",
+                    issue_date: new Date().toISOString().split('T')[0],
+                    expiry_date: "",
+                });
+            }
             setFile(null);
         }
-    }, [open, vehicleId]);
+    }, [open, vehicleId, record]);
+
+    const fetchRecordDetails = async (recordId: number) => {
+        try {
+            const res = await complianceService.getComplianceRecord(vehicleId, recordId);
+            if (res.success && res.data) {
+                const detailedRecord = res.data;
+                // Convert ISO date strings to YYYY-MM-DD format for date inputs
+                const issueDate = detailedRecord.issue_date ? detailedRecord.issue_date.split('T')[0] : '';
+                const expiryDate = detailedRecord.expiry_date ? detailedRecord.expiry_date.split('T')[0] : '';
+
+                setFormData(prev => ({
+                    ...prev,
+                    issue_date: issueDate,
+                    expiry_date: expiryDate,
+                }));
+            }
+        } catch (error) {
+            console.error("Failed to fetch record details", error);
+        }
+    };
 
     const loadComplianceTypes = async () => {
         setFetchingTypes(true);
         try {
-            const res = await complianceService.getComplianceTypes();
+            // Fetch compliance types filtered by vehicle type
+            // This endpoint automatically filters by the vehicle's type and state
+            const res = await complianceService.getVehicleComplianceTypes(vehicleId);
             if (res.success) {
-                if (Array.isArray(res.data)) {
-                    setComplianceTypes(res.data);
+                // The response has nested structure: { vehicle: {...}, compliance_types: [...] }
+                const types = res.data?.compliance_types || res.data;
+                if (Array.isArray(types)) {
+                    setComplianceTypes(types);
                 } else {
                     console.warn("Compliance types response is not an array:", res.data);
                     setComplianceTypes([]);
@@ -108,18 +150,33 @@ export function ComplianceFormDialog({
 
     // Auto-calculate expiry when type or issue date changes
     useEffect(() => {
+        // Only auto-calc if NOT editing or if user changes dates manually?
+        // If editing, we preserve existing dates unless user changes things.
+        // But logic below triggers whenever type/issue date changes.
+        // If I open edit dialog, form data is set. Effect runs.
+        // It might overwrite existing expiry if issue date matches logic?
+        // To be safe, I should only run this if NOT editing or if ONLY issue date changed? 
+        // For simplicity, I'll let it run but check if explicit override needed.
+        // Actually, if editing, we might not want to auto-calc immediately on load.
+        // But `formData` is set in the other effect.
+        if (record && formData.expiry_date === record.expiry_date && formData.issue_date === record.issue_date) {
+            return; // Don't recalc on initial load
+        }
+
         if (formData.compliance_type_id && formData.issue_date) {
             const expiry = calculateExpiry(formData.compliance_type_id, new Date(formData.issue_date));
             if (expiry) {
                 setFormData(prev => {
-                    // Only auto-fill if empty or we want to enforce it? 
-                    // Better to only fill if empty to allow override
-                    if (!prev.expiry_date) return { ...prev, expiry_date: expiry };
+                    // Check if expiry is already set to something else? 
+                    // For better UX, maybe only update if expiry is empty OR if logic dictates.
+                    // But user requests "edit modal", so let's just keep it simple.
+                    // The user previously wanted auto-calc.
+                    if (!prev.expiry_date || !record) return { ...prev, expiry_date: expiry };
                     return prev;
                 });
             }
         }
-    }, [formData.compliance_type_id, formData.issue_date, complianceTypes]);
+    }, [formData.compliance_type_id, formData.issue_date, complianceTypes, record]);
 
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -128,11 +185,18 @@ export function ComplianceFormDialog({
 
         try {
             const data = new FormData();
-            data.append("compliance_type_id", formData.compliance_type_id);
+
+            // If editing, we can't change type, so maybe don't append it? API guide says "Cannot change compliance_type_id".
+            if (!record) {
+                data.append("compliance_type_id", formData.compliance_type_id);
+            }
+
             data.append("issue_date", formData.issue_date);
             data.append("expiry_date", formData.expiry_date);
+
             if (file) {
                 data.append("file", file);
+
                 // Find selected type to get accepted document type
                 const selectedType = complianceTypes.find(t => t.id.toString() === formData.compliance_type_id);
                 if (selectedType && selectedType.accepted_document_types?.length > 0) {
@@ -141,10 +205,31 @@ export function ComplianceFormDialog({
                 }
             }
 
-            const res = await complianceService.createComplianceRecord(vehicleId, data);
+            let res;
+            if (record) {
+                // Update
+                // If using _method=PUT with FormData, we must POST. 
+                // complianceService.updateComplianceRecord calls PUT.
+                // We should probably create a custom call or modify service.
+                // Let's call api.post directly or modify the method?
+                if (file) {
+                    // Use specific call for update with file (POST + _method: PUT handled by service)
+                    res = await complianceService.updateComplianceRecord(vehicleId, record.id, data);
+                } else {
+                    // JSON update
+                    res = await complianceService.updateComplianceRecord(vehicleId, record.id, {
+                        compliance_type_id: formData.compliance_type_id,
+                        issue_date: formData.issue_date,
+                        expiry_date: formData.expiry_date
+                    });
+                }
+            } else {
+                // Create
+                res = await complianceService.createComplianceRecord(vehicleId, data);
+            }
 
             if (res.success) {
-                toast({ title: "Success", description: "Compliance record created successfully." });
+                toast({ title: "Success", description: `Compliance record ${record ? 'updated' : 'created'} successfully.` });
                 onSuccess();
                 onOpenChange(false);
             }
@@ -152,7 +237,7 @@ export function ComplianceFormDialog({
             console.error(error);
             toast({
                 title: "Error",
-                description: error.response?.data?.message || "Failed to create compliance record.",
+                description: error.response?.data?.message || `Failed to ${record ? 'update' : 'create'} compliance record.`,
                 variant: "destructive"
             });
         } finally {
@@ -162,11 +247,11 @@ export function ComplianceFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Add Compliance Record</DialogTitle>
+                    <DialogTitle>{record ? "Edit" : "Add"} Compliance Record</DialogTitle>
                     <DialogDescription>
-                        Add a new compliance record for this vehicle.
+                        {record ? "Update existing compliance record details." : "Add a new compliance record for this vehicle."}
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="grid gap-4 py-4">
@@ -175,19 +260,24 @@ export function ComplianceFormDialog({
                         <Select
                             value={formData.compliance_type_id}
                             onValueChange={(val) => handleInputChange("compliance_type_id", val)}
-                            disabled={fetchingTypes}
+                            disabled={fetchingTypes || !!record}
                         >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full">
                                 <SelectValue placeholder={fetchingTypes ? "Loading types..." : "Select type"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {complianceTypes.map((type) => (
                                     <SelectItem key={type.id} value={type.id.toString()}>
-                                        {type.name} ({type.category})
+                                        <span className="truncate block max-w-[500px]">
+                                            {type.name} ({type.category})
+                                        </span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
+                        {record && (
+                            <p className="text-xs text-muted-foreground">Compliance type cannot be changed when editing</p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -216,16 +306,25 @@ export function ComplianceFormDialog({
 
 
                     <div className="grid gap-2">
-                        <Label htmlFor="file">Document (PDF, Image)</Label>
+                        <Label htmlFor="file">{record ? "Replace Document (Optional)" : "Document (PDF, Image)"}</Label>
+                        {record && record.documents && record.documents.length > 0 && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                                <span className="font-medium">Current:</span>
+                                <span>{record.documents[0].document_name}</span>
+                            </div>
+                        )}
                         <Input
                             id="file"
                             type="file"
                             accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                             onChange={handleFileChange}
                         />
-                        {/* Display requirement hint if selected type requires doc */}
-                        {formData.compliance_type_id && complianceTypes.find(t => t.id.toString() === formData.compliance_type_id)?.requires_document && (
-                            <p className="text-xs text-orange-500">* Document required for this type</p>
+                        {record ? (
+                            <p className="text-xs text-muted-foreground">Leave empty to keep current document</p>
+                        ) : (
+                            formData.compliance_type_id && complianceTypes.find(t => t.id.toString() === formData.compliance_type_id)?.requires_document && (
+                                <p className="text-xs text-orange-500">* Document required for this type</p>
+                            )
                         )}
                     </div>
 

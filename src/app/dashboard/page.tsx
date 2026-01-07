@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import DashboardLayout from "@/components/dashboard-layout";
+import { ComplianceAlertBanner } from "@/components/compliance/compliance-alert-banner";
 import { vehicleService } from "@/lib/vehicles";
 import { tenantService } from "@/lib/tenant";
 import { getAllDocuments } from "@/lib/api/vehicleDocuments";
@@ -157,6 +158,8 @@ export default function DashboardPage() {
             Welcome back! Here's an overview of your fleet.
           </p>
         </div>
+
+        <ComplianceAlertBanner showDetails={true} />
 
         {/* Quick Actions */}
         <Card>

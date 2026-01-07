@@ -16,8 +16,19 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, FileText, History, Trash, Download } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MoreHorizontal, FileText, History, Trash, Download, Pencil, Trash2 } from "lucide-react";
 import { ComplianceRecord, complianceService } from "@/lib/compliance";
 import { ComplianceStatusBadge } from "./compliance-status-badge";
 import { format } from "date-fns";
@@ -28,22 +39,61 @@ interface ComplianceRecordsTableProps {
     records: ComplianceRecord[];
     vehicleId: number;
     onRefresh: () => void;
+    onEdit: (record: ComplianceRecord) => void;
+    isLoading?: boolean;
 }
 
-export function ComplianceRecordsTable({ records, vehicleId, onRefresh }: ComplianceRecordsTableProps) {
+export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, isLoading = false }: ComplianceRecordsTableProps) {
     const [historyOpen, setHistoryOpen] = useState(false);
     const [selectedRequirementId, setSelectedRequirementId] = useState<number | null>(null);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
+    const [selectedRecords, setSelectedRecords] = useState<Record<number, boolean>>({});
+    const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
     const { toast } = useToast();
 
-    const handleDelete = async (recordId: number) => {
-        if (!confirm("Are you sure you want to delete this record? This may affect the vehicle's compliance score.")) return;
+    const handleDeleteClick = (recordId: number) => {
+        setRecordToDelete(recordId);
+        setConfirmDeleteOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!recordToDelete) return;
 
         try {
-            await complianceService.deleteComplianceRecord(vehicleId, recordId);
+            await complianceService.deleteComplianceRecord(vehicleId, recordToDelete);
             toast({ title: "Success", description: "Record deleted successfully" });
             onRefresh();
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete record", variant: "destructive" });
+        } finally {
+            setConfirmDeleteOpen(false);
+            setRecordToDelete(null);
+        }
+    };
+
+    const handleDownload = async (recordId: number, fileName: string) => {
+        try {
+            const response = await complianceService.downloadComplianceDocument(vehicleId, recordId);
+
+            // Get content type from response headers or default to application/pdf
+            const contentType = response.headers['content-type'] || 'application/pdf';
+
+            // Create blob with proper content type
+            const blob = new Blob([response.data], { type: contentType });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName || `document-${recordId}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            // Clean up the URL object
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Download failed", error);
+            toast({ title: "Error", description: "Failed to download document", variant: "destructive" });
         }
     };
 
@@ -52,22 +102,91 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh }: Compli
         setHistoryOpen(true);
     };
 
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            const allSelected = records.reduce((acc, record) => {
+                acc[record.id] = true;
+                return acc;
+            }, {} as Record<number, boolean>);
+            setSelectedRecords(allSelected);
+        } else {
+            setSelectedRecords({});
+        }
+    };
+
+    const handleSelectRecord = (recordId: number, checked: boolean) => {
+        setSelectedRecords(prev => {
+            const updated = { ...prev };
+            if (checked) {
+                updated[recordId] = true;
+            } else {
+                delete updated[recordId];
+            }
+            return updated;
+        });
+    };
+
+    const selectedCount = Object.keys(selectedRecords).filter(key => selectedRecords[parseInt(key)]).length;
+    const allSelected = records.length > 0 && selectedCount === records.length;
+
+    const handleBulkDeleteClick = () => {
+        if (selectedCount > 0) {
+            setConfirmBulkDeleteOpen(true);
+        }
+    };
+
+    const confirmBulkDelete = async () => {
+        const idsToDelete = Object.keys(selectedRecords).filter(key => selectedRecords[parseInt(key)]).map(id => parseInt(id));
+
+        try {
+            await Promise.all(idsToDelete.map(id => complianceService.deleteComplianceRecord(vehicleId, id)));
+            toast({ title: "Success", description: `${idsToDelete.length} record(s) deleted successfully` });
+            setSelectedRecords({});
+            onRefresh();
+        } catch (error) {
+            toast({ title: "Error", description: "Failed to delete some records", variant: "destructive" });
+        } finally {
+            setConfirmBulkDeleteOpen(false);
+        }
+    };
+
     return (
         <>
+            {selectedCount > 0 && (
+                <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-md">
+                    <span className="text-sm font-medium">{selectedCount} record(s) selected</span>
+                    <Button variant="destructive" size="sm" onClick={handleBulkDeleteClick}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Selected
+                    </Button>
+                </div>
+            )}
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-[50px]">
+                                <Checkbox
+                                    checked={allSelected}
+                                    onCheckedChange={handleSelectAll}
+                                    aria-label="Select all"
+                                />
+                            </TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Issue Date</TableHead>
                             <TableHead>Expiry Date</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Documents</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {records.length === 0 ? (
+                        {isLoading ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-24 text-center">
+                                    Loading records...
+                                </TableCell>
+                            </TableRow>
+                        ) : records.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} className="h-24 text-center">
                                     No compliance records found.
@@ -76,6 +195,13 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh }: Compli
                         ) : (
                             records.map((record) => (
                                 <TableRow key={record.id}>
+                                    <TableCell>
+                                        <Checkbox
+                                            checked={selectedRecords[record.id] || false}
+                                            onCheckedChange={(checked) => handleSelectRecord(record.id, checked as boolean)}
+                                            aria-label={`Select record ${record.id}`}
+                                        />
+                                    </TableCell>
                                     <TableCell className="font-medium">
                                         {record.compliance_type.name}
                                         <div className="text-xs text-muted-foreground capitalize">{record.compliance_type.category}</div>
@@ -89,14 +215,6 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh }: Compli
                                     </TableCell>
                                     <TableCell>
                                         <ComplianceStatusBadge status={record.status} />
-                                    </TableCell>
-                                    <TableCell>
-                                        {record.documents.map((doc) => (
-                                            <div key={doc.id} className="flex items-center gap-2 text-sm text-blue-600 hover:underline cursor-pointer" onClick={() => window.open(doc.url, '_blank')}>
-                                                <FileText className="h-4 w-4" />
-                                                <span className="truncate max-w-[150px]">{doc.document_name}</span>
-                                            </div>
-                                        ))}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
@@ -112,13 +230,15 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh }: Compli
                                                     <History className="mr-2 h-4 w-4" />
                                                     View History
                                                 </DropdownMenuItem>
-                                                {record.documents.length > 0 && (
-                                                    <DropdownMenuItem onClick={() => window.open(record.documents[0].url, '_blank')}>
-                                                        <Download className="mr-2 h-4 w-4" />
-                                                        Download Document
-                                                    </DropdownMenuItem>
-                                                )}
-                                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(record.id)}>
+                                                <DropdownMenuItem onClick={() => handleDownload(record.id, record.documents?.[0]?.document_name || "document")}>
+                                                    <Download className="mr-2 h-4 w-4" />
+                                                    Download Document
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => onEdit(record)}>
+                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                    Edit
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteClick(record.id)}>
                                                     <Trash className="mr-2 h-4 w-4" />
                                                     Delete
                                                 </DropdownMenuItem>
@@ -138,6 +258,40 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh }: Compli
                 open={historyOpen}
                 onOpenChange={setHistoryOpen}
             />
+
+            <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the compliance record and may affect the vehicle's compliance score.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={confirmBulkDeleteOpen} onOpenChange={setConfirmBulkDeleteOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedCount} record(s)?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete {selectedCount} compliance record(s) and may affect the vehicle's compliance score.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete All
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
