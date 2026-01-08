@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, X, Loader2, Plus, CalendarIcon, Check, Trash2 } from "lucide-react";
 import { complianceService, ComplianceType } from "@/lib/compliance";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -32,7 +32,6 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
     const [loading, setLoading] = useState(false);
     const [fetchingTypes, setFetchingTypes] = useState(false);
     const [complianceTypes, setComplianceTypes] = useState<ComplianceType[]>([]);
-    const { toast } = useToast();
 
     // Form State
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -101,7 +100,7 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
 
     const handleFileSelect = (file: File) => {
         if (file.size > 100 * 1024 * 1024) { // 100MB limit
-            toast({ title: "File too large", description: "Maximum file size is 100MB", variant: "destructive", });
+            toast.error("File too large", { description: "Maximum file size is 100MB" });
             return;
         }
         setSelectedFile(file);
@@ -109,11 +108,18 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
 
     const addToQueue = () => {
         if (!complianceTypeId) {
-            toast({ title: "Error", description: "Please select a compliance type", variant: "destructive" });
+            toast.error("Please select a compliance type");
             return;
         }
         if (!issueDate || !expiryDate) {
-            toast({ title: "Error", description: "Please select issue and expiry dates", variant: "destructive" });
+            toast.error("Please select issue and expiry dates");
+            return;
+        }
+
+        if (expiryDate < issueDate) {
+            toast.error("Invalid Date Range", {
+                description: "Expiry date must be after the issue date."
+            });
             return;
         }
 
@@ -135,7 +141,7 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
         setIssueDate(new Date());
         setExpiryDate(undefined);
         setSelectedFile(null);
-        toast({ title: "Added to queue", description: "Record added to pending list." });
+        toast.success("Record added to queue!");
     };
 
     const removeFromQueue = (id: string) => {
@@ -152,16 +158,20 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
 
         // If user started filling the form but it's incomplete, BLOCK upload to prevent data loss or confusion.
         if (isFormDirty && !isFormValid) {
-            toast({
-                title: "Incomplete Record",
+            toast.error("Incomplete Record", {
                 description: "Please complete the active record details (Type & Dates) or Clear it before uploading.",
-                variant: "destructive"
             });
             return;
         }
 
         // If form is fully valid, add it to the batch logic
         if (isFormValid) {
+            if (expiryDate! < issueDate!) {
+                toast.error("Invalid Date Range", {
+                    description: "Expiry date must be after the issue date for the current record."
+                });
+                return;
+            }
             const typeName = complianceTypes.find(t => t.id.toString() === complianceTypeId)?.name || "Unknown";
             recordsToSubmit.push({
                 id: "current",
@@ -174,7 +184,7 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
         }
 
         if (recordsToSubmit.length === 0) {
-            toast({ title: "Nothing to upload", description: "Please add records to the queue or fill out the form.", variant: "destructive" });
+            toast.error("Nothing to upload", { description: "Please add records to the queue or fill out the form." });
             return;
         }
 
@@ -201,16 +211,22 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
                 if (res.success) successCount++;
                 else failCount++;
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error(error);
                 failCount++;
+                // If specific validation error, try to show it in a toast (if single upload)
+                if (recordsToSubmit.length === 1 && error.response?.data?.message) {
+                    toast.error("Upload Failed", {
+                        description: error.response.data.message
+                    });
+                }
             }
         }
 
         setLoading(false);
 
         if (successCount > 0) {
-            toast({ title: "Success", description: `Uploaded ${successCount} record(s).` });
+            toast.success(`Uploaded ${successCount} compliance record(s) successfully!`);
             setPendingRecords([]);
             // Clear form
             setComplianceTypeId("");
@@ -220,7 +236,7 @@ export function QuickComplianceAdd({ vehicleId, onSuccess }: QuickComplianceAddP
             onSuccess();
         }
         if (failCount > 0) {
-            toast({ title: "Warning", description: `Failed to upload ${failCount} record(s).`, variant: "destructive" });
+            toast.error(`Failed to upload ${failCount} record(s)`, { description: "Please try again" });
         }
     };
 

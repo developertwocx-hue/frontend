@@ -151,6 +151,8 @@ export const vehicleService = {
     status?: string;
     date_from?: string;
     date_to?: string;
+    compliance_status?: string;
+    compliance_filter?: string;
     include_field_values?: boolean;
   }) {
     const params: any = {
@@ -162,6 +164,8 @@ export const vehicleService = {
     if (filters?.status) params.status = filters.status;
     if (filters?.date_from) params.date_from = filters.date_from;
     if (filters?.date_to) params.date_to = filters.date_to;
+    if (filters?.compliance_status) params.compliance_status = filters.compliance_status;
+    if (filters?.compliance_filter) params.compliance_filter = filters.compliance_filter;
 
     const response = await api.get('/vehicles', { params });
     return response.data;
@@ -208,6 +212,8 @@ export const vehicleService = {
     status?: string;
     date_from?: string;
     date_to?: string;
+    compliance_status?: string;
+    compliance_filter?: string;
   }) {
     const params: any = {};
     if (filters?.vehicle_name) params.vehicle_name = filters.vehicle_name;
@@ -215,6 +221,8 @@ export const vehicleService = {
     if (filters?.status) params.status = filters.status;
     if (filters?.date_from) params.date_from = filters.date_from;
     if (filters?.date_to) params.date_to = filters.date_to;
+    if (filters?.compliance_status) params.compliance_status = filters.compliance_status;
+    if (filters?.compliance_filter) params.compliance_filter = filters.compliance_filter;
 
     const response = await api.get('/vehicles/stats', { params });
     return response.data;

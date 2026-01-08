@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { InfiniteScrollArea } from "@/components/ui/infinite-scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, CheckCircle, Clock, FileWarning, TrendingUp, Loader2 } from "lucide-react";
 import { complianceDashboardService, FleetStatistics, VehicleAtRisk, OverdueItem, ExpiringItem, CategorySummary } from "@/lib/complianceDashboard";
+import { ComplianceStatusBadge } from "@/components/compliance/compliance-status-badge";
 import { useRouter } from "next/navigation";
 
 import { PageLoading } from "@/components/ui/loading-overlay";
@@ -22,6 +24,20 @@ export default function ComplianceDashboardPage() {
     const [expiring, setExpiring] = useState<ExpiringItem[]>([]);
     const [categories, setCategories] = useState<CategorySummary[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Pagination states
+    const [atRiskPage, setAtRiskPage] = useState(1);
+    const [overduePage, setOverduePage] = useState(1);
+    const [expiringPage, setExpiringPage] = useState(1);
+
+    const [atRiskHasMore, setAtRiskHasMore] = useState(true);
+    const [overdueHasMore, setOverdueHasMore] = useState(true);
+    const [expiringHasMore, setExpiringHasMore] = useState(true);
+
+    const [atRiskLoading, setAtRiskLoading] = useState(false);
+    const [overdueLoading, setOverdueLoading] = useState(false);
+    const [expiringLoading, setExpiringLoading] = useState(false);
+
     const router = useRouter();
 
     useEffect(() => {
@@ -33,21 +49,100 @@ export default function ComplianceDashboardPage() {
         try {
             const [statsRes, atRiskRes, overdueRes, expiringRes, categoriesRes] = await Promise.all([
                 complianceDashboardService.getFleetStats(),
-                complianceDashboardService.getFleetAtRisk(),
-                complianceDashboardService.getOverdueItems(),
-                complianceDashboardService.getExpiringSoon(30),
+                complianceDashboardService.getFleetAtRisk({ page: 1, limit: 20 }),
+                complianceDashboardService.getOverdueItems({ page: 1, limit: 20 }),
+                complianceDashboardService.getExpiringSoon(30, { page: 1, limit: 20 }),
                 complianceDashboardService.getSummaryByCategory()
             ]);
 
             if (statsRes.success) setStats(statsRes.data);
-            if (atRiskRes.success) setAtRisk(atRiskRes.data.vehicles || []);
-            if (overdueRes.success) setOverdue(overdueRes.data.items || []);
-            if (expiringRes.success) setExpiring(expiringRes.data.items || []);
+
+            if (atRiskRes.success) {
+                const vehicles = atRiskRes.data.vehicles || atRiskRes.data || [];
+                setAtRisk(vehicles);
+                setAtRiskHasMore(atRiskRes.pagination?.has_more ?? vehicles.length >= 20);
+            }
+
+            if (overdueRes.success) {
+                const items = overdueRes.data.items || overdueRes.data || [];
+                setOverdue(items);
+                setOverdueHasMore(overdueRes.pagination?.has_more ?? items.length >= 20);
+            }
+
+            if (expiringRes.success) {
+                const items = expiringRes.data.items || expiringRes.data || [];
+                setExpiring(items);
+                setExpiringHasMore(expiringRes.pagination?.has_more ?? items.length >= 20);
+            }
+
             if (categoriesRes.success) setCategories(categoriesRes.data.categories || []);
         } catch (error) {
             console.error("Failed to load dashboard data", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadMoreAtRisk = async () => {
+        if (atRiskLoading || !atRiskHasMore) return;
+
+        setAtRiskLoading(true);
+        try {
+            const nextPage = atRiskPage + 1;
+            const response = await complianceDashboardService.getFleetAtRisk({ page: nextPage, limit: 20 });
+
+            if (response.success) {
+                const vehicles = response.data.vehicles || response.data || [];
+                setAtRisk(prev => [...prev, ...vehicles]);
+                setAtRiskPage(nextPage);
+                setAtRiskHasMore(response.pagination?.has_more ?? vehicles.length >= 20);
+            }
+        } catch (error) {
+            console.error("Failed to load more at risk vehicles", error);
+        } finally {
+            setAtRiskLoading(false);
+        }
+    };
+
+    const loadMoreOverdue = async () => {
+        if (overdueLoading || !overdueHasMore) return;
+
+        setOverdueLoading(true);
+        try {
+            const nextPage = overduePage + 1;
+            const response = await complianceDashboardService.getOverdueItems({ page: nextPage, limit: 20 });
+
+            if (response.success) {
+                const items = response.data.items || response.data || [];
+                setOverdue(prev => [...prev, ...items]);
+                setOverduePage(nextPage);
+                setOverdueHasMore(response.pagination?.has_more ?? items.length >= 20);
+            }
+        } catch (error) {
+            console.error("Failed to load more overdue items", error);
+        } finally {
+            setOverdueLoading(false);
+        }
+    };
+
+    const loadMoreExpiring = async () => {
+        if (expiringLoading || !expiringHasMore) return;
+
+        setExpiringLoading(true);
+        try {
+            const nextPage = expiringPage + 1;
+            const response = await complianceDashboardService.getExpiringSoon(30, { page: nextPage, limit: 20 });
+
+            if (response.success) {
+                const items = response.data.items || response.data || [];
+                setExpiring(prev => [...prev, ...items]);
+                setExpiringPage(nextPage);
+                setExpiringHasMore(response.pagination?.has_more ?? items.length >= 20);
+            }
+        } catch (error) {
+            console.error("Failed to load more expiring items", error);
+        } finally {
+            setExpiringLoading(false);
         }
     };
 
@@ -85,33 +180,51 @@ export default function ComplianceDashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                            sessionStorage.setItem('vehicleComplianceFilter', 'at_risk');
+                            router.push('/dashboard/vehicles');
+                        }}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Fleet At Risk</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-orange-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-orange-500">{atRisk.length}</div>
+                            <div className="text-2xl font-bold text-orange-500">{stats?.compliance_overview.at_risk || 0}</div>
                             <p className="text-xs text-muted-foreground">
                                 Vehicles needing attention
                             </p>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                            sessionStorage.setItem('vehicleComplianceFilter', 'overdue');
+                            router.push('/dashboard/vehicles');
+                        }}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Overdue Items</CardTitle>
                             <FileWarning className="h-4 w-4 text-red-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-red-500">{overdue.length}</div>
+                            <div className="text-2xl font-bold text-red-500">{stats?.compliance_overview.expired || 0}</div>
                             <p className="text-xs text-muted-foreground">
                                 Expired compliance items
                             </p>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                            sessionStorage.setItem('vehicleComplianceFilter', 'expiring');
+                            router.push('/dashboard/vehicles');
+                        }}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
                             <Clock className="h-4 w-4 text-yellow-500" />
@@ -206,23 +319,27 @@ export default function ComplianceDashboardPage() {
                         <Tabs defaultValue="at-risk">
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="at-risk">
-                                    Fleet At Risk ({atRisk.length})
+                                    Fleet At Risk ({stats?.compliance_overview.at_risk || 0})
                                 </TabsTrigger>
                                 <TabsTrigger value="overdue">
-                                    Overdue ({overdue.length})
+                                    Overdue ({stats?.compliance_overview.expired || 0})
                                 </TabsTrigger>
                                 <TabsTrigger value="expiring">
-                                    Expiring Soon ({expiring.length})
+                                    Expiring Soon ({stats?.expiring_soon.within_30_days || 0})
                                 </TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="at-risk" className="mt-4">
-                                <ScrollArea className="h-[400px]">
-                                    <div className="space-y-3">
-                                        {atRisk.length === 0 ? (
-                                            <p className="text-center text-muted-foreground py-8">No vehicles at risk</p>
-                                        ) : (
-                                            atRisk.map((vehicle) => (
+                                {atRisk.length === 0 && !loading ? (
+                                    <p className="text-center text-muted-foreground py-8">No vehicles at risk</p>
+                                ) : (
+                                    <InfiniteScrollArea
+                                        onLoadMore={loadMoreAtRisk}
+                                        hasMore={atRiskHasMore}
+                                        loading={atRiskLoading}
+                                    >
+                                        <div className="space-y-3">
+                                            {atRisk.map((vehicle) => (
                                                 <div
                                                     key={vehicle.vehicle_id}
                                                     className="border rounded-lg p-4 hover:bg-muted/50 cursor-pointer"
@@ -233,9 +350,7 @@ export default function ComplianceDashboardPage() {
                                                             <h4 className="font-semibold">{vehicle.vehicle_type} #{vehicle.vehicle_id}</h4>
                                                             <p className="text-sm text-muted-foreground">{vehicle.state_of_operation}</p>
                                                         </div>
-                                                        <Badge variant={vehicle.compliance_status === 'expired' ? 'destructive' : 'secondary'}>
-                                                            {vehicle.compliance_status}
-                                                        </Badge>
+                                                        <ComplianceStatusBadge status={vehicle.compliance_status} />
                                                     </div>
                                                     <div className="space-y-1">
                                                         <p className="text-sm font-medium">
@@ -256,19 +371,23 @@ export default function ComplianceDashboardPage() {
                                                         )}
                                                     </div>
                                                 </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </ScrollArea>
+                                            ))}
+                                        </div>
+                                    </InfiniteScrollArea>
+                                )}
                             </TabsContent>
 
                             <TabsContent value="overdue" className="mt-4">
-                                <ScrollArea className="h-[400px]">
-                                    <div className="space-y-3">
-                                        {overdue.length === 0 ? (
-                                            <p className="text-center text-muted-foreground py-8">No overdue items</p>
-                                        ) : (
-                                            overdue.map((item) => (
+                                {overdue.length === 0 && !loading ? (
+                                    <p className="text-center text-muted-foreground py-8">No overdue items</p>
+                                ) : (
+                                    <InfiniteScrollArea
+                                        onLoadMore={loadMoreOverdue}
+                                        hasMore={overdueHasMore}
+                                        loading={overdueLoading}
+                                    >
+                                        <div className="space-y-3">
+                                            {overdue.map((item) => (
                                                 <div
                                                     key={`${item.vehicle_id}-${item.requirement_id}`}
                                                     className="border rounded-lg p-4 hover:bg-muted/50 cursor-pointer"
@@ -281,7 +400,7 @@ export default function ComplianceDashboardPage() {
                                                                 {item.vehicle_type} #{item.vehicle_id} • {item.state_of_operation}
                                                             </p>
                                                         </div>
-                                                        <Badge variant="destructive">
+                                                        <Badge variant="outline" className="bg-red-500/15 text-red-700 border-red-500/50">
                                                             {item.days_overdue} days overdue
                                                         </Badge>
                                                     </div>
@@ -290,19 +409,23 @@ export default function ComplianceDashboardPage() {
                                                         {item.is_required && <Badge variant="outline">Required</Badge>}
                                                     </div>
                                                 </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </ScrollArea>
+                                            ))}
+                                        </div>
+                                    </InfiniteScrollArea>
+                                )}
                             </TabsContent>
 
                             <TabsContent value="expiring" className="mt-4">
-                                <ScrollArea className="h-[400px]">
-                                    <div className="space-y-3">
-                                        {expiring.length === 0 ? (
-                                            <p className="text-center text-muted-foreground py-8">No items expiring soon</p>
-                                        ) : (
-                                            expiring.map((item) => (
+                                {expiring.length === 0 && !loading ? (
+                                    <p className="text-center text-muted-foreground py-8">No items expiring soon</p>
+                                ) : (
+                                    <InfiniteScrollArea
+                                        onLoadMore={loadMoreExpiring}
+                                        hasMore={expiringHasMore}
+                                        loading={expiringLoading}
+                                    >
+                                        <div className="space-y-3">
+                                            {expiring.map((item) => (
                                                 <div
                                                     key={`${item.vehicle_id}-${item.requirement_id}`}
                                                     className="border rounded-lg p-4 hover:bg-muted/50 cursor-pointer"
@@ -315,7 +438,7 @@ export default function ComplianceDashboardPage() {
                                                                 {item.vehicle_type} #{item.vehicle_id} • {item.state_of_operation}
                                                             </p>
                                                         </div>
-                                                        <Badge variant={item.days_until_expiry <= 7 ? 'destructive' : 'secondary'}>
+                                                        <Badge variant="outline" className={item.days_until_expiry <= 7 ? "bg-red-500/15 text-red-700 border-red-500/50" : "bg-yellow-500/15 text-yellow-700 border-yellow-500/50"}>
                                                             {item.days_until_expiry} days left
                                                         </Badge>
                                                     </div>
@@ -324,10 +447,10 @@ export default function ComplianceDashboardPage() {
                                                         {item.is_required && <Badge variant="outline">Required</Badge>}
                                                     </div>
                                                 </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </ScrollArea>
+                                            ))}
+                                        </div>
+                                    </InfiniteScrollArea>
+                                )}
                             </TabsContent>
                         </Tabs>
                     </CardContent>

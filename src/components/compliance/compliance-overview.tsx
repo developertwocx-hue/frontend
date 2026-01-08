@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ComplianceStatus, complianceService } from "@/lib/compliance";
+import { ComplianceStatus, ComplianceType, complianceService } from "@/lib/compliance";
 import { cn } from "@/lib/utils";
-import { Loader2, AlertTriangle, CheckCircle, Clock, FileWarning } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle, Clock, FileWarning, HelpCircle } from "lucide-react";
 import { ComplianceStatusBadge } from "./compliance-status-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -16,19 +16,28 @@ interface ComplianceOverviewProps {
 
 export function ComplianceOverview({ vehicleId }: ComplianceOverviewProps) {
     const [data, setData] = useState<ComplianceStatus | null>(null);
+    const [availableTypes, setAvailableTypes] = useState<ComplianceType[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        loadStatus();
+        loadData();
     }, [vehicleId]);
 
-    const loadStatus = async () => {
+    const loadData = async () => {
         try {
             setLoading(true);
-            const res = await complianceService.getVehicleComplianceStatus(vehicleId);
-            if (res.success) {
-                setData(res.data);
+            const [statusRes, typesRes] = await Promise.all([
+                complianceService.getVehicleComplianceStatus(vehicleId),
+                complianceService.getVehicleComplianceTypes(vehicleId)
+            ]);
+
+            if (statusRes.success) {
+                setData(statusRes.data);
+            }
+            if (typesRes.success) {
+                const types = typesRes.data?.compliance_types || typesRes.data;
+                setAvailableTypes(Array.isArray(types) ? types : []);
             }
         } catch (err) {
             setError("Failed to load compliance status");
@@ -53,16 +62,35 @@ export function ComplianceOverview({ vehicleId }: ComplianceOverviewProps) {
             <Card>
                 <CardContent className="p-6 text-center text-red-500">
                     {error || "No data available"}
-                    <Button variant="link" onClick={loadStatus} className="ml-2">Retry</Button>
+                    <Button variant="link" onClick={loadData} className="ml-2">Retry</Button>
                 </CardContent>
             </Card>
         );
     }
 
-    // Combine required and optional requirements for display with their types
-    const allRequirements = [
+    // Combine required and optional requirements
+    const requirementList = [
         ...(data.requirements.required || []).map(req => ({ ...req, isOptional: false })),
         ...(data.requirements.optional || []).map(req => ({ ...req, isOptional: true }))
+    ];
+
+    // Merge in any available types that aren't yet in the requirement list
+    const existingNames = new Set(requirementList.map(r => r.compliance_type_name || r.compliance_type));
+    const missingTypes = availableTypes.filter(t => !existingNames.has(t.name));
+
+    const allRequirements = [
+        ...requirementList,
+        ...missingTypes.map(t => ({
+            requirement_id: -t.id, // temp id
+            compliance_type: t.name,
+            compliance_type_name: t.name,
+            category: t.category,
+            status: 'pending',
+            current_record: null,
+            days_until_expiry: null,
+            is_overdue: false,
+            isOptional: !t.is_required
+        }))
     ];
 
     const complianceScore = Number(data.summary.compliance_score || 0);

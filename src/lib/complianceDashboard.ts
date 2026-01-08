@@ -116,6 +116,23 @@ export interface CategorySummary {
 
 // --- Service ---
 
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total: number;
+    total_pages: number;
+    has_more: boolean;
+  };
+}
+
 export const complianceDashboardService = {
   // 1. Get Fleet Statistics
   async getFleetStats() {
@@ -123,22 +140,36 @@ export const complianceDashboardService = {
     return response.data;
   },
 
-  // 2. Get Fleet At Risk
-  async getFleetAtRisk() {
-    const response = await api.get('/compliance/dashboard/fleet-at-risk');
+  // 2. Get Fleet At Risk (with pagination)
+  async getFleetAtRisk(params?: PaginationParams) {
+    const response = await api.get('/compliance/dashboard/fleet-at-risk', {
+      params: {
+        page: params?.page || 1,
+        limit: params?.limit || 20
+      }
+    });
     return response.data;
   },
 
-  // 3. Get Overdue Items
-  async getOverdueItems() {
-    const response = await api.get('/compliance/dashboard/overdue-items');
+  // 3. Get Overdue Items (with pagination)
+  async getOverdueItems(params?: PaginationParams) {
+    const response = await api.get('/compliance/dashboard/overdue-items', {
+      params: {
+        page: params?.page || 1,
+        limit: params?.limit || 20
+      }
+    });
     return response.data;
   },
 
-  // 4. Get Expiring Soon
-  async getExpiringSoon(days: number = 30) {
+  // 4. Get Expiring Soon (with pagination)
+  async getExpiringSoon(days: number = 30, params?: PaginationParams) {
     const response = await api.get('/compliance/dashboard/expiring-soon', {
-      params: { days }
+      params: {
+        days,
+        page: params?.page || 1,
+        limit: params?.limit || 20
+      }
     });
     return response.data;
   },

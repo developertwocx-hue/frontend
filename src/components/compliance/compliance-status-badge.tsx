@@ -10,15 +10,18 @@ export function ComplianceStatusBadge({ status, className }: ComplianceStatusBad
     const getStatusConfig = (s: string) => {
         switch (s.toLowerCase()) {
             case 'compliant':
-                return { variant: 'default' as const, className: 'bg-green-500 hover:bg-green-600' };
+                return { variant: 'outline' as const, className: 'bg-green-500/15 text-green-700 border-green-500/50 hover:bg-green-500/25' };
             case 'at_risk':
-                return { variant: 'default' as const, className: 'bg-orange-500 hover:bg-orange-600' };
+                return { variant: 'outline' as const, className: 'bg-orange-500/15 text-orange-700 border-orange-500/50 hover:bg-orange-500/25' };
             case 'expired':
-                return { variant: 'destructive' as const, className: '' };
+            case 'overdue':
+                return { variant: 'outline' as const, className: 'bg-red-500/15 text-red-700 border-red-500/50 hover:bg-red-500/25' };
             case 'pending':
-                return { variant: 'secondary' as const, className: 'bg-gray-500 text-white hover:bg-gray-600' };
+                return { variant: 'outline' as const, className: 'bg-gray-500/15 text-gray-700 border-gray-500/50 hover:bg-gray-500/25' };
+            case 'active':
+                return { variant: 'outline' as const, className: 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30' };
             default:
-                return { variant: 'secondary' as const, className: '' };
+                return { variant: 'outline' as const, className: 'bg-secondary/50 text-secondary-foreground hover:bg-secondary/70' };
         }
     };
 

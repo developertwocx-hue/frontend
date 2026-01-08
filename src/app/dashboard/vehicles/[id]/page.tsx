@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { vehicleService, Vehicle } from "@/lib/vehicles";
-import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus, X, Eye } from "lucide-react";
+import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus, X, Eye, Check } from "lucide-react";
 import { PageLoading, LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -794,11 +794,38 @@ export default function VehicleDetailPage() {
                   ) : (
                     <>
                       <Upload className="mr-2 h-4 w-4" />
-                      Upload
+                      {pendingUploads.length > 0 || selectedFiles.length > 0
+                        ? `Upload (${pendingUploads.length + (selectedFiles.length > 0 && uploadForm.document_type_id ? 1 : 0)})`
+                        : "Upload"}
                     </>
                   )}
                 </Button>
               </div>
+
+              {/* Pending Uploads List */}
+              {pendingUploads.length > 0 && (
+                <div className="bg-muted/30 rounded-md p-2 space-y-2 max-h-[120px] overflow-y-auto border">
+                  {pendingUploads.map((doc, index) => (
+                    <div key={index} className="flex items-center justify-between text-xs bg-background p-2 rounded border">
+                      <div className="flex items-center gap-2 truncate flex-1">
+                        <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
+                        <div className="truncate">
+                          <span className="font-medium">
+                            {documentTypes.find(t => t.id === doc.document_type_id)?.name}
+                          </span>
+                          <span className="text-muted-foreground"> - {doc.document_name}</span>
+                          <span className="text-muted-foreground block truncate text-[10px]">{doc.file.name}</span>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 flex-shrink-0" onClick={() => {
+                        setPendingUploads(pendingUploads.filter((_, i) => i !== index));
+                      }}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* File Upload Dropzone */}
               <div>
@@ -892,46 +919,6 @@ export default function VehicleDetailPage() {
                   </div>
                 )}
               </div>
-
-              {/* Pending Uploads List */}
-              {pendingUploads.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Ready to Upload ({pendingUploads.length})</Label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
-                    {pendingUploads.map((doc, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-2 bg-accent/50 rounded"
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{doc.document_name}</p>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {documentTypes.find(t => t.id === doc.document_type_id)?.name}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {(doc.file.size / 1024 / 1024).toFixed(2)} MB
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 flex-shrink-0"
-                          onClick={() => {
-                            setPendingUploads(pendingUploads.filter((_, i) => i !== index));
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Add Another Document Button */}
               <Button

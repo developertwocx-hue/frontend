@@ -16,6 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/data-table";
 import { vehicleService, vehicleTypeService, Vehicle, VehicleType } from "@/lib/vehicles";
 import { ColumnDef } from "@tanstack/react-table";
@@ -23,6 +33,7 @@ import { ArrowUpDown, Eye, Pencil, Trash2, Plus, FileText, X, Filter, ChevronDow
 import { PageLoading } from "@/components/ui/loading-overlay";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -37,6 +48,11 @@ export default function VehiclesPage() {
     inactive: 0,
   });
 
+  // Delete confirmation states
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState<number | null>(null);
+  const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
+
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
 
@@ -46,6 +62,7 @@ export default function VehiclesPage() {
   const [tempStatusFilter, setTempStatusFilter] = useState<string>("all");
   const [tempDateFromFilter, setTempDateFromFilter] = useState("");
   const [tempDateToFilter, setTempDateToFilter] = useState("");
+  const [tempComplianceFilter, setTempComplianceFilter] = useState<string>("all");
 
   // Applied filter values (after clicking apply)
   const [nameFilter, setNameFilter] = useState("");
@@ -53,6 +70,7 @@ export default function VehiclesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
+  const [complianceFilter, setComplianceFilter] = useState<string>("all");
 
   // Autocomplete
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -75,7 +93,28 @@ export default function VehiclesPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const initializePage = async () => {
+      // Check if there's a compliance filter from navigation
+      const savedComplianceFilter = sessionStorage.getItem('vehicleComplianceFilter');
+
+      if (savedComplianceFilter && savedComplianceFilter !== 'all') {
+        console.log('Applying compliance filter from navigation:', savedComplianceFilter);
+        setTempComplianceFilter(savedComplianceFilter);
+        setComplianceFilter(savedComplianceFilter);
+        setShowFilters(true);
+
+        const filters: any = { compliance_filter: savedComplianceFilter };
+        await loadData(filters);
+
+        // Clear the saved filter after applying
+        sessionStorage.removeItem('vehicleComplianceFilter');
+      } else {
+        await loadData();
+      }
+    };
+
+    initializePage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadData = async (filters?: {
@@ -84,18 +123,22 @@ export default function VehiclesPage() {
     status?: string;
     date_from?: string;
     date_to?: string;
+    compliance_filter?: string;
   }) => {
     try {
       setLoading(true);
+      console.log('Loading vehicles with filters:', filters);
 
       // Fetch data sequentially
       const vehiclesResponse = await vehicleService.getAll(filters);
+      console.log('Vehicles loaded:', vehiclesResponse.data?.length || 0);
       setVehicles(vehiclesResponse.data || []);
 
       const typesResponse = await vehicleTypeService.getAll();
       setVehicleTypes(typesResponse.data || []);
 
       const statsResponse = await vehicleService.getStats(filters);
+      console.log('Stats loaded:', statsResponse.data);
       setQuickStats(statsResponse.data || {
         total: 0,
         active: 0,
@@ -110,46 +153,67 @@ export default function VehiclesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this vehicle?")) return;
+    setVehicleToDelete(id);
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!vehicleToDelete) return;
 
     try {
-      await vehicleService.delete(id);
+      await vehicleService.delete(vehicleToDelete);
+      toast.success("Vehicle deleted successfully!");
       // Refresh with current filters
       await applyFilters();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete vehicle:", error);
+      toast.error("Failed to delete vehicle", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setConfirmDeleteOpen(false);
+      setVehicleToDelete(null);
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDeleteClick = () => {
+    const selectedIds = Object.keys(selectedRows).filter(id => selectedRows[id]);
+    if (selectedIds.length > 0) {
+      setConfirmBulkDeleteOpen(true);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
     const selectedIds = Object.keys(selectedRows).filter(id => selectedRows[id]).map(Number);
 
     if (selectedIds.length === 0) return;
 
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} vehicle(s)?`)) return;
-
     try {
       setLoading(true);
       await vehicleService.bulkDelete(selectedIds);
+      toast.success(`${selectedIds.length} vehicle(s) deleted successfully!`);
       setSelectedRows({});
       // Refresh with current filters
       await applyFilters();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete vehicles:", error);
-      alert("Failed to delete vehicles. Please try again.");
+      toast.error("Failed to delete some vehicles", {
+        description: error.response?.data?.message || "Please try again",
+      });
     } finally {
       setLoading(false);
+      setConfirmBulkDeleteOpen(false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-primary/20 text-primary border-primary/50";
+        return "bg-primary/15 text-primary border-primary/50";
       case "maintenance":
-        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50";
+        return "bg-yellow-500/15 text-yellow-700 border-yellow-500/50";
       case "inactive":
-        return "bg-gray-500/20 text-gray-700 border-gray-500/50";
+        return "bg-gray-500/15 text-gray-700 border-gray-500/50";
       default:
         return "";
     }
@@ -222,6 +286,7 @@ export default function VehiclesPage() {
     setStatusFilter(tempStatusFilter);
     setDateFromFilter(tempDateFromFilter);
     setDateToFilter(tempDateToFilter);
+    setComplianceFilter(tempComplianceFilter);
 
     // Build filter object for backend
     const filters: any = {};
@@ -246,6 +311,10 @@ export default function VehiclesPage() {
       filters.date_to = tempDateToFilter;
     }
 
+    if (tempComplianceFilter !== "all") {
+      filters.compliance_filter = tempComplianceFilter;
+    }
+
     // Call backend API with filters
     await loadData(filters);
   };
@@ -257,6 +326,7 @@ export default function VehiclesPage() {
     setTempStatusFilter("all");
     setTempDateFromFilter("");
     setTempDateToFilter("");
+    setTempComplianceFilter("all");
 
     // Clear applied values
     setNameFilter("");
@@ -264,6 +334,7 @@ export default function VehiclesPage() {
     setStatusFilter("all");
     setDateFromFilter("");
     setDateToFilter("");
+    setComplianceFilter("all");
 
     setShowSuggestions(false);
 
@@ -271,7 +342,7 @@ export default function VehiclesPage() {
     await loadData();
   };
 
-  const hasActiveFilters = nameFilter || typeFilter !== "all" || statusFilter !== "all" || dateFromFilter || dateToFilter;
+  const hasActiveFilters = nameFilter || typeFilter !== "all" || statusFilter !== "all" || dateFromFilter || dateToFilter || complianceFilter !== "all";
 
   const columns: ColumnDef<Vehicle>[] = [
     {
@@ -444,7 +515,7 @@ export default function VehiclesPage() {
             {Object.values(selectedRows).filter(Boolean).length > 0 && (
               <Button
                 variant="destructive"
-                onClick={handleBulkDelete}
+                onClick={handleBulkDeleteClick}
                 disabled={loading}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -474,7 +545,9 @@ export default function VehiclesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{quickStats.total}</div>
-              <p className="text-xs text-muted-foreground">All vehicles</p>
+              <p className="text-xs text-muted-foreground">
+                {hasActiveFilters ? 'Filtered results' : 'All vehicles'}
+              </p>
             </CardContent>
           </Card>
 
@@ -521,17 +594,17 @@ export default function VehiclesPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Filters Section */}
-            <div className="rounded-lg border bg-muted/50 overflow-hidden">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-2">
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+                <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowFilters(!showFilters)}
-                    className="h-8 px-2"
+                    className="h-9 px-3 hover:bg-muted"
                   >
                     <Filter className="h-4 w-4 mr-2" />
-                    <span className="font-semibold">Filters</span>
+                    <span className="font-medium">Filters</span>
                     {showFilters ? (
                       <ChevronUp className="h-4 w-4 ml-2" />
                     ) : (
@@ -539,161 +612,178 @@ export default function VehiclesPage() {
                     )}
                   </Button>
                   {hasActiveFilters && (
-                    <Badge variant="secondary">
-                      {[nameFilter, typeFilter !== "all", statusFilter !== "all", dateFromFilter || dateToFilter].filter(Boolean).length} active
+                    <Badge variant="default" className="h-6">
+                      {[nameFilter, typeFilter !== "all", statusFilter !== "all", dateFromFilter || dateToFilter, complianceFilter !== "all"].filter(Boolean).length} active
                     </Badge>
                   )}
                 </div>
                 {hasActiveFilters && (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={clearFilters}
-                    className="h-8"
+                    className="h-9"
                   >
-                    <X className="h-4 w-4 mr-1" />
+                    <X className="h-4 w-4 mr-2" />
                     Clear All
                   </Button>
                 )}
               </div>
 
               <div
-                className={`transition-all duration-300 ease-in-out ${
-                  showFilters ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-                }`}
+                className={`transition-all duration-300 ease-in-out ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+                  }`}
                 style={{ overflow: showFilters ? 'visible' : 'hidden' }}
               >
-                <div className="px-4 pb-4 space-y-4">
+                <div className="p-6 space-y-6">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {/* Name Filter */}
-                <div id="name-filter-container" className="space-y-2 relative">
-                  <Label htmlFor="name-filter">Vehicle Name</Label>
-                  <Input
-                    id="name-filter"
-                    placeholder="Vehicle Name"
-                    value={tempNameFilter}
-                    onChange={(e) => setTempNameFilter(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => {
-                      if (tempNameFilter.length >= 2 && vehicleNameSuggestions.length > 0) {
-                        setShowSuggestions(true);
-                      }
-                    }}
-                    className="h-9"
-                    autoComplete="off"
-                  />
-                  {showSuggestions && vehicleNameSuggestions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                      {vehicleNameSuggestions.map((name, index) => (
-                        <div
-                          key={index}
-                          className={`px-3 py-2 cursor-pointer text-sm ${
-                            index === selectedSuggestionIndex
-                              ? 'bg-accent'
-                              : 'hover:bg-accent'
-                          }`}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setTempNameFilter(name);
-                            setShowSuggestions(false);
-                            setSelectedSuggestionIndex(-1);
-                          }}
-                          onMouseEnter={() => setSelectedSuggestionIndex(index)}
-                        >
-                          {name}
+                    {/* Name Filter */}
+                    <div id="name-filter-container" className="space-y-2 relative">
+                      <Label htmlFor="name-filter" className="text-sm font-medium">Vehicle Name</Label>
+                      <Input
+                        id="name-filter"
+                        placeholder="Search by name..."
+                        value={tempNameFilter}
+                        onChange={(e) => setTempNameFilter(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => {
+                          if (tempNameFilter.length >= 2 && vehicleNameSuggestions.length > 0) {
+                            setShowSuggestions(true);
+                          }
+                        }}
+                        className="h-10"
+                        autoComplete="off"
+                      />
+                      {showSuggestions && vehicleNameSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                          {vehicleNameSuggestions.map((name, index) => (
+                            <div
+                              key={index}
+                              className={`px-3 py-2 cursor-pointer text-sm ${index === selectedSuggestionIndex
+                                ? 'bg-accent'
+                                : 'hover:bg-accent'
+                                }`}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setTempNameFilter(name);
+                                setShowSuggestions(false);
+                                setSelectedSuggestionIndex(-1);
+                              }}
+                              onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                            >
+                              {name}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Search by vehicle name
-                  </p>
-                </div>
 
-                {/* Type Filter */}
-                <div className="space-y-2">
-                  <Label htmlFor="type-filter">Vehicle Type</Label>
-                  <Select value={tempTypeFilter} onValueChange={setTempTypeFilter}>
-                    <SelectTrigger id="type-filter" className="h-9">
-                      <SelectValue placeholder="All types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      {vehicleTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {/* Type Filter */}
+                    <div className="space-y-2">
+                      <Label htmlFor="type-filter" className="text-sm font-medium">Vehicle Type</Label>
+                      <Select value={tempTypeFilter} onValueChange={setTempTypeFilter}>
+                        <SelectTrigger id="type-filter" className="h-10">
+                          <SelectValue placeholder="All types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          {vehicleTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id.toString()}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {/* Status Filter */}
-                <div className="space-y-2">
-                  <Label htmlFor="status-filter">Status</Label>
-                  <Select value={tempStatusFilter} onValueChange={setTempStatusFilter}>
-                    <SelectTrigger id="status-filter" className="h-9">
-                      <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {/* Status Filter */}
+                    <div className="space-y-2">
+                      <Label htmlFor="status-filter" className="text-sm font-medium">Status</Label>
+                      <Select value={tempStatusFilter} onValueChange={setTempStatusFilter}>
+                        <SelectTrigger id="status-filter" className="h-10">
+                          <SelectValue placeholder="All statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="maintenance">Maintenance</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {/* Date Range Filter */}
-                <div className="space-y-2">
-                  <Label>Created Date Range</Label>
-                  <div className="flex gap-2">
-                    <DatePicker
-                      value={tempDateFromFilter}
-                      onChange={(date) => setTempDateFromFilter(date ? date.toISOString().split('T')[0] : '')}
-                      placeholder="From"
-                      className="h-9 text-xs"
-                    />
-                    <DatePicker
-                      value={tempDateToFilter}
-                      onChange={(date) => setTempDateToFilter(date ? date.toISOString().split('T')[0] : '')}
-                      placeholder="To"
-                      className="h-9 text-xs"
-                      fromDate={tempDateFromFilter ? new Date(tempDateFromFilter) : undefined}
-                    />
+                    {/* Compliance Filter */}
+                    <div className="space-y-2">
+                      <Label htmlFor="compliance-filter" className="text-sm font-medium">Compliance</Label>
+                      <Select value={tempComplianceFilter} onValueChange={setTempComplianceFilter}>
+                        <SelectTrigger id="compliance-filter" className="h-10">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="at_risk">At Risk</SelectItem>
+                          <SelectItem value="overdue">Overdue</SelectItem>
+                          <SelectItem value="expiring">Expiring Soon</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Date Range Filter - Separate Row */}
+                  <div className="flex gap-4">
+                    <div className="space-y-2 w-64">
+                      <Label className="text-sm font-medium">Created Date From</Label>
+                      <DatePicker
+                        value={tempDateFromFilter}
+                        onChange={(date) => setTempDateFromFilter(date ? date.toISOString().split('T')[0] : '')}
+                        placeholder="Select start date"
+                        className="h-10 w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2 w-64">
+                      <Label className="text-sm font-medium">Created Date To</Label>
+                      <DatePicker
+                        value={tempDateToFilter}
+                        onChange={(date) => setTempDateToFilter(date ? date.toISOString().split('T')[0] : '')}
+                        placeholder="Select end date"
+                        className="h-10 w-full"
+                        fromDate={tempDateFromFilter ? new Date(tempDateFromFilter) : undefined}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Apply and Clear Buttons */}
+                  <div className="pt-6 border-t flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      {hasActiveFilters && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{vehicles.length}</span>
+                          <span>vehicles found</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={clearFilters}
+                        disabled={!hasActiveFilters && !tempNameFilter && tempTypeFilter === "all" && tempStatusFilter === "all" && !tempDateFromFilter && !tempDateToFilter && tempComplianceFilter === "all"}
+                        className="h-10 px-4"
+                      >
+                        Reset Filters
+                      </Button>
+                      <Button
+                        onClick={applyFilters}
+                        className="h-10 px-6"
+                      >
+                        Apply Filters
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              {/* Apply and Clear Buttons */}
-              <div className="pt-4 border-t flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {hasActiveFilters && (
-                    <>
-                      Showing <span className="font-medium text-foreground">{vehicles.length}</span> vehicles
-                    </>
-                  )}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearFilters}
-                    disabled={!hasActiveFilters && !tempNameFilter && tempTypeFilter === "all" && tempStatusFilter === "all" && !tempDateFromFilter && !tempDateToFilter}
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={applyFilters}
-                  >
-                    Apply Filters
-                  </Button>
-                </div>
-              </div>
             </div>
-          </div>
-        </div>
 
             {/* DataTable */}
             <DataTable
@@ -705,6 +795,42 @@ export default function VehiclesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Single Delete Confirmation Dialog */}
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the vehicle and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={confirmBulkDeleteOpen} onOpenChange={setConfirmBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {Object.values(selectedRows).filter(Boolean).length} vehicle(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete {Object.values(selectedRows).filter(Boolean).length} vehicle(s) and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

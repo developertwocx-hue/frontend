@@ -33,7 +33,7 @@ import { ComplianceRecord, complianceService } from "@/lib/compliance";
 import { ComplianceStatusBadge } from "./compliance-status-badge";
 import { format } from "date-fns";
 import { ComplianceHistorySheet } from "./compliance-history-sheet";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 interface ComplianceRecordsTableProps {
     records: ComplianceRecord[];
@@ -50,7 +50,6 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
     const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
     const [selectedRecords, setSelectedRecords] = useState<Record<number, boolean>>({});
     const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
-    const { toast } = useToast();
 
     const handleDeleteClick = (recordId: number) => {
         setRecordToDelete(recordId);
@@ -62,10 +61,12 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
 
         try {
             await complianceService.deleteComplianceRecord(vehicleId, recordToDelete);
-            toast({ title: "Success", description: "Record deleted successfully" });
+            toast.success("Compliance record deleted successfully!");
             onRefresh();
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to delete record", variant: "destructive" });
+        } catch (error: any) {
+            toast.error("Failed to delete record", {
+                description: error.response?.data?.message || "Please try again",
+            });
         } finally {
             setConfirmDeleteOpen(false);
             setRecordToDelete(null);
@@ -91,9 +92,11 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
 
             // Clean up the URL object
             window.URL.revokeObjectURL(url);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Download failed", error);
-            toast({ title: "Error", description: "Failed to download document", variant: "destructive" });
+            toast.error("Failed to download document", {
+                description: error.response?.data?.message || "Please try again",
+            });
         }
     };
 
@@ -140,11 +143,13 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
 
         try {
             await Promise.all(idsToDelete.map(id => complianceService.deleteComplianceRecord(vehicleId, id)));
-            toast({ title: "Success", description: `${idsToDelete.length} record(s) deleted successfully` });
+            toast.success(`${idsToDelete.length} compliance record(s) deleted successfully!`);
             setSelectedRecords({});
             onRefresh();
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to delete some records", variant: "destructive" });
+        } catch (error: any) {
+            toast.error("Failed to delete some records", {
+                description: error.response?.data?.message || "Please try again",
+            });
         } finally {
             setConfirmBulkDeleteOpen(false);
         }

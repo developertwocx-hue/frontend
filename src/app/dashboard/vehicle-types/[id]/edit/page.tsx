@@ -17,6 +17,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   vehicleTypeService,
@@ -31,6 +41,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PageLoading } from "@/components/ui/loading-overlay";
 import { DataTable } from "@/components/data-table";
 import { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 
 export default function EditVehicleTypePage() {
   const router = useRouter();
@@ -46,6 +57,8 @@ export default function EditVehicleTypePage() {
   const [viewingField, setViewingField] = useState<VehicleTypeField | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingField, setSavingField] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [fieldToDelete, setFieldToDelete] = useState<number | null>(null);
 
   const {
     register: registerField,
@@ -170,26 +183,40 @@ export default function EditVehicleTypePage() {
 
       setFieldDialogOpen(false);
       resetField();
+      toast.success(`Field ${editingField ? 'updated' : 'created'} successfully!`);
     } catch (error: any) {
       console.error("Failed to save field:", error);
-      alert(error.response?.data?.message || "Failed to save field");
+      toast.error(`Failed to ${editingField ? 'update' : 'save'} field`, {
+        description: error.response?.data?.message || "Please try again",
+      });
     } finally {
       setSavingField(false);
     }
   };
 
-  const handleDeleteField = async (fieldId: number) => {
-    if (!confirm("Are you sure you want to delete this field?")) return;
+  const handleDeleteClick = (fieldId: number) => {
+    setFieldToDelete(fieldId);
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!fieldToDelete) return;
 
     try {
-      await vehicleTypeFieldService.delete(fieldId);
+      await vehicleTypeFieldService.delete(fieldToDelete);
 
       // Refresh fields
       const fieldsResponse = await vehicleTypeFieldService.getForType(vehicleTypeId, true);
       setFields(fieldsResponse.data || []);
+      toast.success("Field deleted successfully!");
     } catch (error: any) {
       console.error("Failed to delete field:", error);
-      alert(error.response?.data?.message || "Failed to delete field");
+      toast.error("Failed to delete field", {
+        description: error.response?.data?.message || "Please try again",
+      });
+    } finally {
+      setConfirmDeleteOpen(false);
+      setFieldToDelete(null);
     }
   };
 
@@ -302,7 +329,7 @@ export default function EditVehicleTypePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleDeleteField(field.id)}
+                  onClick={() => handleDeleteClick(field.id)}
                   className="hover:text-destructive"
                   title="Delete"
                 >
@@ -620,6 +647,24 @@ export default function EditVehicleTypePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the custom field.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
