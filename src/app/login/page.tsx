@@ -48,7 +48,14 @@ export default function LoginPage() {
       await authService.login(data);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
+      // Handle validation errors from backend
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        const errorMessages = Object.values(errors).flat().join(', ');
+        setError(errorMessages);
+      } else {
+        setError(err.response?.data?.message || "Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

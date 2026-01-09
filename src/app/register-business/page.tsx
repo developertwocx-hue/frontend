@@ -58,7 +58,21 @@ export default function RegisterBusinessPage() {
       await tenantService.registerBusiness(data);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Registration failed. Please try again.");
+      // Handle validation errors from backend
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        // Format validation errors in a user-friendly way
+        const errorMessages = Object.entries(errors)
+          .map(([field, messages]: [string, any]) => {
+            const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+            const messageList = Array.isArray(messages) ? messages : [messages];
+            return `${fieldName}: ${messageList.join(', ')}`;
+          })
+          .join('\n');
+        setError(errorMessages);
+      } else {
+        setError(err.response?.data?.message || "Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -93,7 +107,7 @@ export default function RegisterBusinessPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md whitespace-pre-line">
                 {error}
               </div>
             )}
