@@ -2,6 +2,7 @@
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { NotificationBell } from "@/components/alerts/notification-bell";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -118,6 +119,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       </Breadcrumb>
 
       <div className="ml-auto flex items-center gap-2">
+        <NotificationBell />
         {/* Theme Toggle Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

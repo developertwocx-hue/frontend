@@ -33,7 +33,9 @@ import { ComplianceRecord, complianceService } from "@/lib/compliance";
 import { ComplianceStatusBadge } from "./compliance-status-badge";
 import { format } from "date-fns";
 import { ComplianceHistorySheet } from "./compliance-history-sheet";
+import { DocumentPreviewDialog } from "@/components/documents/document-preview-dialog";
 import { toast } from "sonner";
+import { Eye } from "lucide-react";
 
 interface ComplianceRecordsTableProps {
     records: ComplianceRecord[];
@@ -50,6 +52,10 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
     const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
     const [selectedRecords, setSelectedRecords] = useState<Record<number, boolean>>({});
     const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
+
+    // Preview Dialog State
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [previewDoc, setPreviewDoc] = useState<{ name: string, url: string, type: string, id: number | string } | null>(null);
 
     const handleDeleteClick = (recordId: number) => {
         setRecordToDelete(recordId);
@@ -235,6 +241,21 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
                                                     <History className="mr-2 h-4 w-4" />
                                                     View History
                                                 </DropdownMenuItem>
+                                                {record.documents && record.documents.length > 0 && (
+                                                    <DropdownMenuItem onClick={() => {
+                                                        const doc = record.documents![0];
+                                                        setPreviewDoc({
+                                                            id: doc.id || 0,
+                                                            name: doc.document_name,
+                                                            url: doc.url || doc.file_path || "",
+                                                            type: doc.file_type || (doc.document_name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+                                                        });
+                                                        setPreviewOpen(true);
+                                                    }}>
+                                                        <Eye className="mr-2 h-4 w-4" />
+                                                        Preview Document
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuItem onClick={() => handleDownload(record.id, record.documents?.[0]?.document_name || "document")}>
                                                     <Download className="mr-2 h-4 w-4" />
                                                     Download Document
@@ -297,6 +318,13 @@ export function ComplianceRecordsTable({ records, vehicleId, onRefresh, onEdit, 
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+
+            <DocumentPreviewDialog
+                open={previewOpen}
+                onOpenChange={setPreviewOpen}
+                document={previewDoc}
+            />
         </>
     );
 }

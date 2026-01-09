@@ -64,6 +64,9 @@ export interface Vehicle {
   last_service_date?: string;
   next_service_date?: string;
   notes?: string;
+  operational_status?: 'operational' | 'non_operational' | 'maintenance';
+  can_operate?: boolean;
+  compliance_score?: number;
 }
 
 export interface VehicleDocument {

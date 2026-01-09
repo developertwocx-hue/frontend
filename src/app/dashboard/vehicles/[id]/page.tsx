@@ -6,6 +6,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
 import { vehicleService, Vehicle } from "@/lib/vehicles";
 import { ChevronLeft, FileText, Pencil, QrCode, Download, Upload, Trash2, Plus, X, Eye, Check } from "lucide-react";
 import { PageLoading, LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -688,7 +689,10 @@ export default function VehicleDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={`${getStatusColor(vehicle.status)} capitalize border font-medium`}>
+            <Badge
+              className={`text-base px-3 py-1 capitalize ${getStatusColor(vehicle.status || "active")}`}
+              variant="outline"
+            >
               {vehicle.status}
             </Badge>
             <Button

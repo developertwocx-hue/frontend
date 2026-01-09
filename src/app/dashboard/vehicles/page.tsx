@@ -35,6 +35,9 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
+
+import { ComplianceScoreBadge } from "@/components/vehicles/compliance-score-badge";
+
 export default function VehiclesPage() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -420,13 +423,22 @@ export default function VehiclesPage() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const status = row.getValue("status") as string;
+        const vehicle = row.original;
         return (
-          <Badge className={`${getStatusColor(status)} capitalize`}>
-            {status}
+          <Badge className={getStatusColor(vehicle.status)} variant="outline">
+            {vehicle.status.charAt(0).toUpperCase() + vehicle.status.slice(1)}
           </Badge>
         );
       },
+    },
+    {
+      accessorKey: "compliance_score",
+      header: "Compliance",
+      cell: ({ row }) => (
+        <div className="w-[60px]">
+          <ComplianceScoreBadge score={row.original.compliance_score || 0} size="sm" showLabel={false} />
+        </div>
+      ),
     },
     {
       accessorKey: "created_at",
