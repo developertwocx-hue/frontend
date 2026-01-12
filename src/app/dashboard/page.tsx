@@ -8,21 +8,20 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import DashboardLayout from "@/components/dashboard-layout";
 import { ComplianceAlertBanner } from "@/components/compliance/compliance-alert-banner";
+import { VehicleStatusChart } from "@/components/dashboard/vehicle-status-chart";
+import { FleetComplianceChart } from "@/components/dashboard/fleet-compliance-chart";
 import { vehicleService } from "@/lib/vehicles";
-import { tenantService } from "@/lib/tenant";
+import { complianceDashboardService } from "@/lib/complianceDashboard";
 import { getAllDocuments } from "@/lib/api/vehicleDocuments";
 import {
   Truck,
   CheckCircle,
   Wrench,
   XCircle,
-  ShoppingCart,
   FileText,
   AlertCircle,
   Plus,
-  Upload,
-  BarChart3,
-  Clock
+  BarChart3
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -34,14 +33,15 @@ export default function DashboardPage() {
     inactiveVehicles: 0,
     totalDocuments: 0,
     expiringSoon: 0,
+    // Compliance stats
+    compliantItems: 0,
+    atRiskItems: 0,
+    expiredItems: 0,
+    pendingItems: 0,
   });
-  const [tenant, setTenant] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [tenantLoading, setTenantLoading] = useState(true);
   const [recentVehiclesLoading, setRecentVehiclesLoading] = useState(true);
-  const [expiringDocsLoading, setExpiringDocsLoading] = useState(true);
   const [recentVehicles, setRecentVehicles] = useState<any[]>([]);
-  const [expiringDocuments, setExpiringDocuments] = useState<any[]>([]);
 
   useEffect(() => {
     // Fetch all data sequentially to avoid duplicate calls
@@ -81,6 +81,20 @@ export default function DashboardPage() {
           totalDocuments: documents.length,
           expiringSoon: expiring.length,
         }));
+
+        // Step 2.5: Fetch Compliance Status
+        const complianceStatsRes = await complianceDashboardService.getFleetStats();
+        if (complianceStatsRes.success) {
+          const overview = complianceStatsRes.data.compliance_overview;
+          setStats(prev => ({
+            ...prev,
+            compliantItems: overview.compliant || 0,
+            atRiskItems: overview.at_risk || 0,
+            expiredItems: overview.expired || 0,
+            pendingItems: overview.pending || 0,
+          }));
+        }
+
         setStatsLoading(false);
 
         // Step 3: Process recent vehicles (bottom section)
@@ -90,21 +104,10 @@ export default function DashboardPage() {
         setRecentVehicles(recent);
         setRecentVehiclesLoading(false);
 
-        // Step 4: Process expiring documents (bottom section)
-        setExpiringDocuments(expiring.slice(0, 5));
-        setExpiringDocsLoading(false);
-
-        // Step 5: Fetch tenant info (bottom section)
-        const tenantRes = await tenantService.getCurrentTenant();
-        setTenant(tenantRes.data);
-        setTenantLoading(false);
-
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
         setStatsLoading(false);
         setRecentVehiclesLoading(false);
-        setExpiringDocsLoading(false);
-        setTenantLoading(false);
       }
     };
 
@@ -140,9 +143,9 @@ export default function DashboardPage() {
 
     // Fallback: try other common naming fields
     const fallbackName = getVehicleFieldValue(vehicle, "vehicle name") ||
-                         getVehicleFieldValue(vehicle, "model") ||
-                         getVehicleFieldValue(vehicle, "plate") ||
-                         getVehicleFieldValue(vehicle, "license");
+      getVehicleFieldValue(vehicle, "model") ||
+      getVehicleFieldValue(vehicle, "plate") ||
+      getVehicleFieldValue(vehicle, "license");
     if (fallbackName) return fallbackName;
 
     // If still no name found, use vehicle ID
@@ -325,62 +328,25 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Expiring Documents Alert */}
-        {(expiringDocsLoading || (stats.expiringSoon > 0 && expiringDocuments.length > 0)) && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                    Documents Expiring Soon
-                  </CardTitle>
-                  <CardDescription>Review and renew these documents</CardDescription>
-                </div>
-                {!expiringDocsLoading && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push("/dashboard/documents?filter=expiring")}
-                  >
-                    View All
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {expiringDocsLoading ? (
-                <div className="flex justify-center py-8">
-                  <LoadingSpinner size="md" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {expiringDocuments.map((doc: any) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{doc.document_name}</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="shrink-0">
-                        {new Date(doc.expiry_date).toLocaleDateString()}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
+        {/* Charts Row */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Recent Activity */}
+          <VehicleStatusChart
+            activeVehicles={stats.activeVehicles}
+            maintenanceVehicles={stats.maintenanceVehicles}
+            inactiveVehicles={stats.inactiveVehicles}
+            loading={statsLoading}
+          />
+          <FleetComplianceChart
+            compliant={stats.compliantItems}
+            atRisk={stats.atRiskItems}
+            expired={stats.expiredItems}
+            pending={stats.pendingItems}
+            loading={statsLoading}
+          />
+        </div>
+
+        {/* Recent Vehicles (Full Width) */}
+        <div className="grid gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Recent Vehicles</CardTitle>
@@ -392,7 +358,7 @@ export default function DashboardPage() {
                   <LoadingSpinner size="md" />
                 </div>
               ) : recentVehicles.length > 0 ? (
-                <div className="space-y-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {recentVehicles.map((vehicle: any) => {
                     const vehicleName = getVehicleName(vehicle);
                     const vehicleType = vehicle.vehicle_type?.name || "Unknown Type";
@@ -400,23 +366,23 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={vehicle.id}
-                        className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors"
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors gap-4"
                         onClick={() => router.push(`/dashboard/vehicles/${vehicle.id}`)}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
                             <Truck className="w-5 h-5 text-primary" />
                           </div>
-                          <div>
-                            <p className="font-medium">{vehicleName}</p>
-                            <p className="text-sm text-muted-foreground">{vehicleType}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate" title={vehicleName}>{vehicleName}</p>
+                            <p className="text-sm text-muted-foreground truncate">{vehicleType}</p>
                           </div>
                         </div>
                         <Badge variant={
                           vehicle.status === "active" ? "default" :
-                          vehicle.status === "maintenance" ? "secondary" :
-                          "outline"
-                        }>
+                            vehicle.status === "maintenance" ? "secondary" :
+                              "outline"
+                        } className="shrink-0">
                           {vehicle.status}
                         </Badge>
                       </div>
@@ -428,53 +394,8 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
-
-          {/* Business Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Information</CardTitle>
-              <CardDescription>Your account details</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {tenantLoading ? (
-                <div className="flex justify-center py-8">
-                  <LoadingSpinner size="md" />
-                </div>
-              ) : tenant ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg">
-                    <div>
-                      <p className="font-medium">{tenant.name}</p>
-                      <p className="text-sm text-muted-foreground">Business Name</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg">
-                    <div>
-                      <p className="font-medium">{tenant.email}</p>
-                      <p className="text-sm text-muted-foreground">Email</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg">
-                    <div>
-                      <p className="font-medium capitalize">{tenant.subscription_plan}</p>
-                      <p className="text-sm text-muted-foreground">Subscription Plan</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg">
-                    <div>
-                      <p className="font-medium">
-                        {new Date(tenant.subscription_ends_at).toLocaleDateString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">Subscription Ends</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">No business information available</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
+
       </div>
     </DashboardLayout>
   );
