@@ -1047,6 +1047,7 @@ function DocumentsPageContent() {
               searchPlaceholder="Search documents..."
               showPagination={true}
               pageSize={20}
+              onRowClick={(document) => handlePreview(document)}
             />
           </CardContent>
         </Card>

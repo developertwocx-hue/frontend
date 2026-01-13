@@ -803,6 +803,7 @@ export default function VehiclesPage() {
               data={vehicles}
               searchKey="id"
               searchPlaceholder="Search by ID..."
+              onRowClick={(vehicle) => router.push(`/dashboard/vehicles/${vehicle.id}`)}
             />
           </CardContent>
         </Card>
